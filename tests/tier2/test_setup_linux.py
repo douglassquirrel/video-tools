@@ -3,11 +3,13 @@
 
 import json
 import os
+import shutil
+import subprocess
 import sys
 
 import pytest
 
-from tests.tier2.conftest import REPO, STUBS, run
+from tests.tier2.conftest import REPO, STUBS, clean_env, run
 
 PACKAGES = ["numpy", "soundfile", "kokoro-onnx==0.6.1", "Pillow"]
 IMPORTS = "import numpy, soundfile, kokoro_onnx, PIL"
@@ -64,13 +66,23 @@ def test_help_and_usage():
     assert "the following arguments are required: --venv, --model, --conf" in err
 
 
-def test_a_venv_inside_the_checkout_is_refused_in_words_before_anything_runs(tmp_path):
-    for inside in (REPO, os.path.join(REPO, "linux-venv"), os.path.join(REPO, "work", "venv")):
-        code, out, err = run("setup-linux", "--venv", inside, "--model", tmp_path / "kokoro", "--conf", tmp_path / "c.conf")
-        assert (code, out) == (2, "")
-        assert err == (f"setup-linux: --venv {inside} is inside this checkout ({REPO}); the Linux venv must be made "
-                       "outside it, or it would shadow the Mac's .venv (README, \"Running from the Linux device shell\")\n")
-    assert not os.path.exists(os.path.join(REPO, "linux-venv")) and not os.path.exists(tmp_path / "c.conf")
+def test_a_venv_inside_the_checkout_is_refused_in_words_before_anything_runs(pystub, tmp_path):
+    # A copy of the checkout, with the stub python3 first on PATH: even with the guard broken, nothing is
+    # made in the real checkout, no real venv is made and no network is reached.
+    copy = tmp_path / "checkout"
+    copy.mkdir()
+    shutil.copy(os.path.join(REPO, "setup-linux"), copy / "setup-linux")
+    shutil.copytree(os.path.join(REPO, "videotools"), copy / "videotools")
+    env = clean_env(PATH=pystub["PATH"], PYSTUB_LOG=pystub["PYSTUB_LOG"], PYTHONDONTWRITEBYTECODE="1")
+    for inside in (copy, copy / "linux-venv", copy / "work" / "venv"):
+        p = subprocess.run([sys.executable, str(copy / "setup-linux"), "--venv", str(inside), "--model",
+                            str(tmp_path / "kokoro"), "--conf", str(tmp_path / "c.conf")],
+                           capture_output=True, text=True, env=env, cwd=tmp_path, check=False)
+        assert (p.returncode, p.stdout) == (2, "")
+        assert p.stderr == (f"setup-linux: --venv {inside} is inside this checkout ({copy}); the Linux venv must be made "
+                            "outside it, or it would shadow the Mac's .venv (README, \"Running from the Linux device shell\")\n")
+    assert sorted(os.listdir(copy)) == ["setup-linux", "videotools"] and not os.path.exists(tmp_path / "c.conf")
+    assert calls(pystub) == []
 
 
 def test_makes_the_venv_installs_the_packages_and_prints_the_three_lines(pystub):

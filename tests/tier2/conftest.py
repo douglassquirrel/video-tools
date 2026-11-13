@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 import pytest
 
@@ -105,16 +106,30 @@ def clean_env(**overrides):
     return env
 
 
+COVERING = "VIDEO_TOOLS_TESTS_MEASURE"   # set by pytest_configure when this run measures coverage; in the
+                                        # environment, since the tests may import this file under another name
+
+
+def pytest_configure(config):
+    if config.getoption("cov_source", None) and not config.getoption("no_cov", False):
+        os.environ[COVERING] = "1"
+    else:
+        os.environ.pop(COVERING, None)
+
+
 def run(command, *args, cwd=None, env=None):
-    """Run a top-level command script with this Python; (exit code, stdout, stderr)."""
+    """Run a top-level command script with this Python; (exit code, stdout, stderr). Without `cwd`, from
+    a fresh empty folder, so a relative path never lands in the checkout, even when the code is wrong."""
     full_env = clean_env()
     full_env["PYTHONDONTWRITEBYTECODE"] = "1"
-    # Let coverage.py measure the subprocess too (pyproject.toml: parallel = true).
-    full_env.setdefault("COVERAGE_PROCESS_START", os.path.join(REPO, "pyproject.toml"))
+    if os.environ.get(COVERING):    # let coverage.py measure the subprocess too (pyproject.toml: parallel = true)
+        full_env.setdefault("COVERAGE_PROCESS_START", os.path.join(REPO, "pyproject.toml"))
+        full_env.setdefault("COVERAGE_FILE", os.path.join(REPO, ".coverage"))   # not the empty folder it runs in
     full_env.update(env or {})
     full_env = {k: v for k, v in full_env.items() if v is not None}   # None in `env` unsets a variable
-    p = subprocess.run([sys.executable, os.path.join(REPO, command)] + [str(a) for a in args],
-                       capture_output=True, text=True, cwd=cwd or REPO, env=full_env, check=False)
+    with tempfile.TemporaryDirectory() as empty:
+        p = subprocess.run([sys.executable, os.path.join(REPO, command)] + [str(a) for a in args],
+                           capture_output=True, text=True, cwd=cwd or empty, env=full_env, check=False)
     return p.returncode, p.stdout, p.stderr
 
 
