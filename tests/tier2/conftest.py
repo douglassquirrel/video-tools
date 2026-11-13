@@ -83,3 +83,68 @@ def run_script(*args, cwd=None, env=None):
     p = subprocess.run([sys.executable, os.path.join(REPO, "cut-video")] + [str(a) for a in args],
                        capture_output=True, text=True, cwd=cwd or REPO, env=env, check=False)
     return p.returncode, p.stdout, p.stderr
+
+
+# ---- narrate, stills and compare-video (taken in from training-video-tools at fc6091a): the
+# commands run as subprocesses, against tests/stubs/fakemedia.py as ffmpeg and ffprobe and the
+# fake speech model in tests/stubs/kokoro_onnx/.
+
+STUBS = os.path.join(REPO, "tests", "stubs")
+
+# Settings the user's shell may export (the README tells device-shell users to export
+# VIDEO_TOOLS_PYTHON and VIDEO_TOOLS_CONF) that would change what a command under test does: a test
+# sets them on purpose or not at all. training-video-tools' own are dropped too.
+USER_SETTINGS = ("VIDEO_TOOLS_PYTHON", "VIDEO_TOOLS_CONF", "VIDEO_TOOLS_VENV",
+                 "TRAINING_VIDEO_TOOLS_PYTHON", "TRAINING_VIDEO_TOOLS_CONF", "TRAINING_VIDEO_TOOLS_VENV")
+
+
+def clean_env(**overrides):
+    """A copy of the environment without the user's own video-tools settings, plus `overrides`."""
+    env = {k: v for k, v in os.environ.items() if k not in USER_SETTINGS}
+    env.update(overrides)
+    return env
+
+
+def run(command, *args, cwd=None, env=None):
+    """Run a top-level command script with this Python; (exit code, stdout, stderr)."""
+    full_env = clean_env()
+    full_env["PYTHONDONTWRITEBYTECODE"] = "1"
+    # Let coverage.py measure the subprocess too (pyproject.toml: parallel = true).
+    full_env.setdefault("COVERAGE_PROCESS_START", os.path.join(REPO, "pyproject.toml"))
+    full_env.update(env or {})
+    full_env = {k: v for k, v in full_env.items() if v is not None}   # None in `env` unsets a variable
+    p = subprocess.run([sys.executable, os.path.join(REPO, command)] + [str(a) for a in args],
+                       capture_output=True, text=True, cwd=cwd or REPO, env=full_env, check=False)
+    return p.returncode, p.stdout, p.stderr
+
+
+@pytest.fixture
+def ffstub(tmp_path):
+    """Stub ffmpeg and ffprobe (fakemedia.py) first on PATH, logging every call. Returns the environment."""
+    bin_dir = tmp_path / "ffbin"
+    bin_dir.mkdir()
+    for name in ("ffmpeg", "ffprobe"):
+        path = bin_dir / name
+        # The stub is not code under test: started without coverage's hook, it starts in a tenth of the time.
+        path.write_text(f"#!/bin/sh\nunset COVERAGE_PROCESS_START\nFFSTUB_NAME={name} exec '{sys.executable}' "
+                        f"'{os.path.join(STUBS, 'fakemedia.py')}' \"$@\"\n")
+        path.chmod(0o755)
+    return {"PATH": f"{bin_dir}:{os.environ['PATH']}", "FFSTUB_LOG": str(tmp_path / "ff-calls.jsonl")}
+
+
+def ff_calls(env):
+    """The stub's recorded calls: [{'ffmpeg': [...]} or {'ffprobe': [...]}] in order."""
+    path = env["FFSTUB_LOG"]
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f]
+
+
+def fake_media(path, **fields):
+    """A fake media file the stub understands: key=value lines."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        for k, v in fields.items():
+            f.write(f"{k}={v}\n")
+    return path

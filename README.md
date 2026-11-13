@@ -1,28 +1,50 @@
 # video-tools
 
-Small command-line tools for working with video of any kind, run from Terminal on a Mac. Each command takes the
-files it works on as arguments, only ever reads them, and writes new files into a folder you name. There is one
-command so far, `cut-video`, which cuts the beginning and end off a recording at phrases found in its transcript
-and cuts the transcript to match. It is for anyone who has a recording and a SubRip (`.srt`) transcript of it,
-such as the one a speech-to-text tool writes, and wants to trim the chatter before and after the part that matters.
+Small command-line tools for working with video of any kind, run from Terminal on a Mac (and from a Linux
+shell that shares the checkout). Each command takes the files it works on as arguments, only ever reads them, and
+writes new files into a folder you name. For anyone describing, checking or trimming a video:
+
+- `cut-video` cuts the beginning and end off a recording at phrases found in its SubRip (`.srt`) transcript, and
+  cuts the transcript to match.
+- `stills` writes frames of a video as PNGs, at given times, every so many seconds or wherever the picture
+  changes, with labelled contact sheets: for seeing what is on screen when.
+- `compare-video` compares two finished videos (length, frames, sound levels, narration, pictures) and reports.
+- `narrate --lines` speaks each line of a table of timed description lines with a local speech model, one clip per
+  line, with their lengths.
+- `setup-linux` prepares a Linux shell to run them.
+
+`stills`, `compare-video`, `narrate --lines` and `setup-linux` came from
+[training-video-tools](https://github.com/douglassquirrel/training-video-tools) on 13 November 2026, unchanged
+but for the names of their settings (see "Notes for users").
 
 ## Requirements
 
-- macOS with its own Python 3 (`/usr/bin/python3`, 3.9 or later); nothing beyond Python's standard library. It also
-  runs under Linux with Python 3.9 or later.
-- `ffmpeg` and `ffprobe`, from [Homebrew](https://brew.sh): `brew install ffmpeg` installs both.
+- macOS on Apple silicon (checked on macOS 26) with [Homebrew](https://brew.sh); Linux with Python 3.10 to 3.13 for
+  the Linux shell (see "Running from the Linux device shell").
+- `ffmpeg` and `ffprobe`: `brew install ffmpeg` installs both.
+- `cut-video` needs nothing more: it runs on the Mac's own `/usr/bin/python3` (3.9 or later), standard library only.
+- `stills`, `compare-video` and `narrate` need Homebrew's `python@3.12` (the speech package needs Python 3.10 to
+  3.13) with the packages in `requirements.txt` (numpy, soundfile, kokoro-onnx 0.6.1, Pillow), in a `.venv` inside
+  the checkout (Installation).
+- `narrate` also needs the Kokoro-82M speech model, about 327 MB, in `~/models/kokoro/`, and `~/.video-tools.conf`
+  naming its folder ("One-time set-up of the speech model").
 
 ## Installation
 
+Paste into Terminal, from the folder you keep code in:
+
 ```bash
-brew install ffmpeg
+brew install ffmpeg python@3.12
 git clone https://github.com/douglassquirrel/video-tools.git
 cd video-tools
-./cut-video --help
+/opt/homebrew/bin/python3.12 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+./stills --help
 ```
 
-Run the commands from the checkout, or give their full path from anywhere; they work from any folder. Nothing is
-installed or copied elsewhere.
+Run the commands from the checkout, or give their full path from anywhere; they work from any folder. `stills`,
+`compare-video` and `narrate` find the `.venv` themselves, whichever `python3` your shell has; `cut-video` needs no
+`.venv`. Nothing is installed or copied outside the folder.
 
 ## Quick start
 
@@ -57,9 +79,7 @@ Wrote out/clip-cut.txt
 
 ## Usage
 
-```
-cut-video [--dry-run] [--from PHRASE] [--to PHRASE] --out DIR VIDEO TRANSCRIPT
-```
+### `cut-video [--dry-run] [--from PHRASE] [--to PHRASE] --out DIR VIDEO TRANSCRIPT`
 
 - `--from PHRASE`: the cut starts at the start of the caption (cue) where this phrase begins. Without it, the video
   keeps its beginning.
@@ -90,11 +110,81 @@ All three are written under temporary names in `DIR` and renamed only when all t
 fails or is stopped with Ctrl-C leaves nothing behind. Encoding takes as long as the cut is long; there is no time
 limit.
 
-There is no configuration file: everything is on the command line.
+`cut-video` reads no configuration file: everything is on the command line. Its exit codes are its own (below).
+
+### `stills VIDEO (--at T[,T…] | --every SECONDS [--from T] [--until T] | --changes [--threshold N] [--detect-fps N] [--from T] [--until T]) --out FOLDER [--sheet SHEET.png] [--grid CxR]`
+### `stills VIDEO --sheet SHEET.png --out FOLDER [--grid CxR]`
+
+For seeing what is on screen when: one PNG per frame at the video's own size, written into `--out FOLDER` (made
+if missing) and named by its time so the names sort in order (`t0012.40.png`), plus `stills.txt` listing each time
+and file name, one to a line. Choose the frames one way: `--at 0,1.5,3` for the times given, in seconds;
+`--every 2` for every two seconds from 0 while less than the video's length; `--changes` for the first frame and
+every frame where the picture changes, by ffmpeg's scene detection (`--threshold`, 0 to 1, default 0.3, is the score
+a change must beat; lower finds more). With `--sheet`, also a contact sheet: each frame in a cell 360 px wide and
+as tall as the video's proportions need, so a vertical Short and a landscape video each keep their shape, with its
+time in a grey strip under the frame, never over it; `--grid CxR` sets the cells per sheet (default: the smallest
+square that holds them, at most five across), and more frames than a grid holds go on numbered sheets,
+`SHEET-1.png`, `SHEET-2.png`, …. Refuses, before anything is read, an existing still, listing or sheet, no choice
+or two, a bad `--grid`, `--threshold` without `--changes`, `--every` of 0 or less, and a time at or past the end
+(saying the length). Needs ffmpeg, ffprobe and Pillow. `stills.txt` is written a line at a time, as each still is
+written, so a run that is killed part-way leaves a listing of exactly the stills there. Each still is written to a
+part name (`.t0012.40.png.part`), listed, and only then renamed, so a still with its name is always listed; a kill
+leaves at worst a part file. A first argument ending `.md` is refused (exit 2): the forms of `stills` that take a
+training script belong to training-video-tools.
+
+**A long video in slices** (for a shell that cuts a call off, such as the Linux device shell's three minutes):
+`--from T` and `--until T`, in seconds, with `--every` or `--changes`, take only the window from `--from` (default
+0) up to but not including `--until` (default the end; past the end is the end, so slices at round numbers need
+not know the length). The scan seeks to the window, so a slice costs its own length. Slices go into the same
+`--out` folder: with a window an existing `stills.txt` is added to, not refused, and a still the listing names is
+refused as always; a still that is there but not listed, or a part file, is a killed run's leftover and is written
+over (the unlisted still is said on stderr, `t0807.80.png was there but not listed; written again`; the part file
+silently). Without a window, any existing still is refused. `--changes` lists the video's first frame only when the
+window starts at 0, and `--every` steps from `--from`, so slices joined give exactly what one whole run gives. With
+no `--at`, `--every` or `--changes`, `--sheet SHEET.png --out FOLDER` draws the sheet of every still
+`FOLDER/stills.txt` lists, in that order, reading nothing from the video (the file must still exist): the last call
+after the slices. `--from` at or past the end, `--until` not after `--from`, a window with `--at`, or a window with
+`--sheet` alone are refused (exit 2); a missing or empty listing, a missing still, or a listing line that is not
+`TIME NAME`, exit 3.
+
+**How `--changes` scores**: ffmpeg scores the picture 10 times a second, not every frame (`fps=10` before the
+`select` filter), so a cut is reported at the first scored moment after it, within a tenth of a second, and the
+still is read there; `--detect-fps N` changes the rate (above 0; fewer is a little faster, more is finer). The
+audio track is not decoded. `--changes` runs ffmpeg once over the file or the window
+(`fps=10,select='gt(scene,N)',metadata=print`) and then reads each chosen frame; a frame ffmpeg cannot read is an
+error (exit 4) and the stills written before it stay, listed.
+
+```console
+$ ./stills cuts.mp4 --changes --out cuts-stills --sheet cuts.png
+t0000.00.png at 0.000 s
+t0004.00.png at 4.000 s
+Wrote 2 stills to cuts-stills and the sheet cuts.png
+$ cat cuts-stills/stills.txt
+0.00 t0000.00.png
+4.00 t0004.00.png
+$ ./stills cuts.mp4 --at 1,9 --out late
+stills: 9 s is past the end of cuts.mp4 (5.520 s)
+$ ./stills cuts.mp4 --changes --until 3 --out sliced
+t0000.00.png at 0.000 s
+Wrote 1 still to sliced
+$ ./stills cuts.mp4 --changes --from 3 --out sliced
+t0004.00.png at 4.000 s
+Wrote 1 still to sliced
+$ ./stills cuts.mp4 --sheet sliced/sheet.png --out sliced
+Drew 2 stills from sliced/stills.txt on the sheet sliced/sheet.png
+```
+
+(13 November 2026, the real ffmpeg 9.0.2: `cuts.mp4` is an invented 160×90 clip, red, then green from 2 s, then
+blue from 4 s, 5.52 s long; the sheet is 720×239. ffmpeg's scene score finds the cut to blue but not the one from
+red to green, even at `--threshold 0.1`: what counts as a change is ffmpeg's to say. The two slices give the same
+stills, byte for byte, as the whole run.)
 
 ## Errors and exit codes
 
-Every refusal is one line on stderr starting `cut-video:`, saying what is wrong and what to do.
+Every refusal is a line on stderr starting with the command's name, saying what is wrong and what to do; never a
+traceback. `cut-video` has its own codes; the other commands share theirs (the second table).
+
+### `cut-video`
 
 | Exit | Meaning | What to do |
 |---|---|---|
@@ -110,6 +200,15 @@ Every refusal is one line on stderr starting `cut-video:`, saying what is wrong 
 | 10 | `ffprobe` cannot read the video, or gives no duration | Check the file is a video ffmpeg can read |
 | 11 | `ffmpeg` failed; its message is shown, and nothing was written | Read ffmpeg's message |
 | 130 | Stopped with Ctrl-C; nothing was written | |
+
+### `stills`, `compare-video`, `narrate`, `setup-linux`
+
+| Exit | Meaning | What to do |
+|---|---|---|
+| 0 | Success; with `--dry-run`, everything checked and nothing written. `compare-video` reports and never judges: 0 whenever it runs. | |
+| 2 | Bad arguments (see `--help`). For `stills`: a first argument ending `.md` (a training script), no choice of `--at`, `--every` or `--changes`, or two; `--threshold` without `--changes` or outside 0 to 1; `--detect-fps` of 0 or less or without `--changes`; `--every` of 0 or less; a time at or past the video's end (the length is given); `--from` or `--until` with `--at`, with `--sheet` alone or not a time; `--from` at or past the end; `--until` not after `--from`; a `--grid` that is not two whole numbers of at least 1. | Fix the command line. |
+| 3 | An input refuses, and nothing is written. For `stills`: any still, `stills.txt` or sheet it would write already exists (with `--from` or `--until`, `stills.txt` is added to instead, and a still not in it is written over); for `--sheet` alone, `stills.txt` or a still it names is missing, it lists no stills, a line of it is not `TIME NAME`, or the video is missing. A settings file that cannot be read (the line named). `VIDEO_TOOLS_PYTHON` names no such file. | Fix the input, or move the output away. |
+| 4 | A package (numpy, soundfile, Pillow, kokoro-onnx) is not installed in the Python running the command: one line names it, its `pip install` line and, when `VIDEO_TOOLS_PYTHON` is unset, the device-shell set-up; ffmpeg or ffprobe is not on PATH; ffmpeg failed (its output is shown). What was written before stays. | Install as above, or read ffmpeg's message. |
 
 ## Testing
 
