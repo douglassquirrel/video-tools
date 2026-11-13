@@ -32,10 +32,13 @@ def video(tmp_path):
 
 @pytest.mark.parametrize("command, args, module, pip", [
     ("stills", ["--at", "1", "--out", "stills-folder"], "PIL", "Pillow"),
+    ("compare-video", ["SELF"], "numpy", "numpy"),                       # SELF: the video again
+    ("compare-video", ["SELF", "--sheet", "sheet.png"], "PIL", "Pillow"),
 ])
 def test_a_missing_package_is_named_with_its_install_line_exit_4(video, ffstub, tmp_path, command, args, module,
                                                                    pip):
     env = dict(ffstub, **hidden(tmp_path, module))
+    args = [video if a == "SELF" else a for a in args]
     code, out, err = run(command, video, *args, env=env, cwd=tmp_path)
     assert (code, out) == (4, ""), err
     assert "Traceback" not in err

@@ -121,7 +121,7 @@ def run(command, *args, cwd=None, env=None):
 @pytest.fixture
 def ffstub(tmp_path):
     """Stub ffmpeg and ffprobe (fakemedia.py) first on PATH, logging every call. Returns the environment."""
-    bin_dir = tmp_path / "ffbin"
+    bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name in ("ffmpeg", "ffprobe"):
         path = bin_dir / name

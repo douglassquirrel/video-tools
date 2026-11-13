@@ -6,7 +6,9 @@ ffstub.py.
 Media files are fake: text files of `key=value` lines (`frames=90`, `duration=3.0`,
 `max_volume=-1.2`, `mean_volume=-20.0`, `tone=0-1.0,2.0-3.0` the spans where the decoded audio is
 loud, `colours=0:200.40.40,10:0.0.255` the colour of every frame from each time, `width=480`,
-`height=854` the frame size, default 1920x1080, `scenes=2,4.04` the times the scene scan reports).
+`height=854` the frame size, default 1920x1080, `scenes=2,4.04` the times the scene scan reports,
+`unstated_frames=1` a video stream that does not state its frame count, `no_levels=1` a volumedetect
+report without levels, `early_report=1` an earlier volumedetect report before the last).
 Every call is appended as a JSON line to FFSTUB_LOG. FFSTUB_FAIL names a job (`probe`, `volume`,
 `frame`, `frame@T` (the frame read at -ss T only), `scenes`, `audio`) that exits 1; FFSTUB_SHORT_FRAME
 makes a frame read give half the bytes. An existing
@@ -71,7 +73,10 @@ def ffprobe(args):
         print(json.dumps({"programs": [], "stream_groups": [],
                           "streams": [{"index": 0, "codec_type": "video", "width": int(fake.get("width", 1920)),
                                        "height": int(fake.get("height", 1080)),
-                                       "r_frame_rate": "30/1", "nb_frames": fake.get("frames", "0")},
+                                       "r_frame_rate": "30/1", "nb_frames": fake.get("frames", "0")}
+                                      if not fake.get("unstated_frames") else
+                                      {"index": 0, "codec_type": "video", "width": int(fake.get("width", 1920)),
+                                       "height": int(fake.get("height", 1080)), "r_frame_rate": "30/1"},
                                       {"index": 1, "codec_type": "audio", "sample_rate": "48000", "channels": 1,
                                        "r_frame_rate": "0/0", "nb_frames": "1"}],
                           "format": {"duration": fake.get("duration", "0"), "size": str(os.path.getsize(path))}},
@@ -90,6 +95,11 @@ def ffmpeg(args):
         fail_if("volume")
         fake = read_fake(arg_after(args, "-i"))
         sys.stderr.write("[Parsed_volumedetect_0 @ 0x1] n_samples: 0\n")
+        if fake.get("no_levels"):               # a report without the two lines
+            return 0
+        if fake.get("early_report"):            # an earlier report first: the last one counts
+            sys.stderr.write("[Parsed_volumedetect_0 @ 0x1] mean_volume: -91.0 dB\n"
+                             "[Parsed_volumedetect_0 @ 0x1] max_volume: -91.0 dB\n")
         sys.stderr.write(f"[Parsed_volumedetect_0 @ 0x2] n_samples: 144000\n"
                          f"[Parsed_volumedetect_0 @ 0x2] mean_volume: {fake.get('mean_volume', '-20.0')} dB\n"
                          f"[Parsed_volumedetect_0 @ 0x2] max_volume: {fake.get('max_volume', '-1.0')} dB\n")

@@ -179,6 +179,35 @@ blue from 4 s, 5.52 s long; the sheet is 720×239. ffmpeg's scene score finds th
 red to green, even at `--threshold 0.1`: what counts as a change is ffmpeg's to say. The two slices give the same
 stills, byte for byte, as the whole run.)
 
+### `compare-video NEW.mp4 OLD.mp4 [--every SECONDS] [--sheet OUT.png]`
+
+The acceptance of a re-made or revised video: two finished files compared and reported, never judged (exit 0
+whenever it runs; a remake that is meant to differ still compares). For each file, the length, frame count, peak
+and mean level; then the narration envelopes (each file's audio decoded to 48 kHz mono, the RMS of every 0.1 s
+window), their correlation over the shorter file (`undefined` when one is flat), and the windows that are speech
+(above −40 dBFS) in one and silence in the other; then one frame from each file every `--every` seconds (default
+5) and the mean absolute difference of the pair over RGB, 0 to 255: the mean, the median and the five largest with
+their times. With `--sheet`, those five pairs side by side, new left, old right, each labelled under the frame
+(refuses an existing file). Needs ffmpeg, ffprobe and numpy, and Pillow for the sheet.
+
+```console
+$ ./compare-video new.mp4 old.mp4 --every 2 --sheet compare.png
+NEW new.mp4
+  length 10.000 s, 250 frames; peak -17.9 dBFS, mean -23.3 dBFS
+OLD old.mp4
+  length 10.000 s, 250 frames; peak -17.9 dBFS, mean -23.3 dBFS
+narration envelopes (0.1 s windows, 100 compared): correlation 1.0000; speech in one and silence in the other: 0 windows
+frames every 2 s (5 pairs): mean difference 58.2, median 0.0 (0-255)
+  largest: 145.6 at 8.0 s, 145.3 at 6.0 s, 0.0 at 0.0 s, 0.0 at 2.0 s, 0.0 at 4.0 s
+sheet of 5 pairs written to compare.png
+$ ./compare-video new.mp4 gone.mp4
+compare-video: no such file: gone.mp4
+```
+
+(13 November 2026, the real ffmpeg 9.0.2 on two invented 10-second clips: the same test pattern and tone, with
+`new.mp4`'s colours shifted from 6 s; the two largest differences are the two frames after the shift, and the
+sheet, 1920×2850, shows them first.)
+
 ## Errors and exit codes
 
 Every refusal is a line on stderr starting with the command's name, saying what is wrong and what to do; never a
@@ -207,7 +236,7 @@ traceback. `cut-video` has its own codes; the other commands share theirs (the s
 |---|---|---|
 | 0 | Success; with `--dry-run`, everything checked and nothing written. `compare-video` reports and never judges: 0 whenever it runs. | |
 | 2 | Bad arguments (see `--help`). For `stills`: a first argument ending `.md` (a training script), no choice of `--at`, `--every` or `--changes`, or two; `--threshold` without `--changes` or outside 0 to 1; `--detect-fps` of 0 or less or without `--changes`; `--every` of 0 or less; a time at or past the video's end (the length is given); `--from` or `--until` with `--at`, with `--sheet` alone or not a time; `--from` at or past the end; `--until` not after `--from`; a `--grid` that is not two whole numbers of at least 1. | Fix the command line. |
-| 3 | An input refuses, and nothing is written. For `stills`: any still, `stills.txt` or sheet it would write already exists (with `--from` or `--until`, `stills.txt` is added to instead, and a still not in it is written over); for `--sheet` alone, `stills.txt` or a still it names is missing, it lists no stills, a line of it is not `TIME NAME`, or the video is missing. A settings file that cannot be read (the line named). `VIDEO_TOOLS_PYTHON` names no such file. | Fix the input, or move the output away. |
+| 3 | An input refuses, and nothing is written. For `stills`: any still, `stills.txt` or sheet it would write already exists (with `--from` or `--until`, `stills.txt` is added to instead, and a still not in it is written over); for `--sheet` alone, `stills.txt` or a still it names is missing, it lists no stills, a line of it is not `TIME NAME`, or the video is missing. For `compare-video`: either file is missing, or the sheet exists. A settings file that cannot be read (the line named). `VIDEO_TOOLS_PYTHON` names no such file. | Fix the input, or move the output away. |
 | 4 | A package (numpy, soundfile, Pillow, kokoro-onnx) is not installed in the Python running the command: one line names it, its `pip install` line and, when `VIDEO_TOOLS_PYTHON` is unset, the device-shell set-up; ffmpeg or ffprobe is not on PATH; ffmpeg failed (its output is shown). What was written before stays. | Install as above, or read ffmpeg's message. |
 
 ## Testing
