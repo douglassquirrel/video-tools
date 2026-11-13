@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""setup-linux: the Linux device shell's venv, packages, model check and config, in one command."""
+
+import os
+import sys
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+
+# Standard library only, on whatever python3 runs it: this command makes the venv the other
+# wrappers restart under (README, "Running from the Linux device shell"), so it cannot use it.
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+sys.path.insert(0, HERE)
+
+from videotools.setup_linux import main  # noqa: E402
+
+sys.exit(main())
