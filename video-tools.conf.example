@@ -1,5 +1,11 @@
-# Copy to ~/.video-tools.conf and edit. Every setting can also be given as a flag on the command
-# line, which wins over this file. This file is read, never run: KEY=value lines, # comments,
-# optional quotes, and a leading ~ in a path means your home folder. Only what belongs to this
-# machine goes here; nothing secret.
-#SETTING=~/somewhere
+# Copy to ~/.video-tools.conf and edit. VIDEO_TOOLS_CONF, if set, names another file instead.
+# Flags on the command line win over this file. This file is read, never run: KEY=value lines, # comments,
+# optional quotes, and a leading ~ in a folder means your home folder. Only what belongs to this
+# machine goes here; nothing secret. cut-video reads nothing from it.
+
+# narrate: the folder holding the Kokoro speech model's model.onnx and voices.npz (README,
+# "One-time set-up of the speech model").
+#SPEECH_MODEL_DIR=~/models/kokoro
+
+# narrate --lines: the voice when --voice is not given (default af_heart).
+#VOICE=af_heart
