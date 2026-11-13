@@ -148,3 +148,27 @@ def fake_media(path, **fields):
         for k, v in fields.items():
             f.write(f"{k}={v}\n")
     return path
+
+
+@pytest.fixture
+def speech(tmp_path):
+    """A fake speech model: the stub kokoro_onnx on PYTHONPATH, an empty model folder, a config
+    naming it, and a log of the stub's calls. Returns the environment to run with."""
+    model = tmp_path / "models" / "kokoro"
+    model.mkdir(parents=True)
+    (model / "model.onnx").write_bytes(b"")
+    (model / "voices.npz").write_bytes(b"")
+    conf = tmp_path / "video-tools.conf"
+    conf.write_text(f"SPEECH_MODEL_DIR={model}\nVOICE=bm_george\n")
+    log = tmp_path / "kokoro-calls.jsonl"
+    return {"PYTHONPATH": STUBS, "VIDEO_TOOLS_CONF": str(conf), "KOKORO_STUB_LOG": str(log),
+            "SPEECH_MODEL_DIR_FOR_TESTS": str(model)}
+
+
+def stub_calls(env):
+    """The stub speech model's recorded calls, in order."""
+    path = env["KOKORO_STUB_LOG"]
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f]

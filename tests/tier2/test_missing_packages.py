@@ -34,16 +34,24 @@ def video(tmp_path):
     ("stills", ["--at", "1", "--out", "stills-folder"], "PIL", "Pillow"),
     ("compare-video", ["SELF"], "numpy", "numpy"),                       # SELF: the video again
     ("compare-video", ["SELF", "--sheet", "sheet.png"], "PIL", "Pillow"),
+    ("narrate", ["--replace"], "soundfile", "soundfile"),                # the video's place: a table
+    ("narrate", ["--replace"], "numpy", "numpy"),
 ])
-def test_a_missing_package_is_named_with_its_install_line_exit_4(video, ffstub, tmp_path, command, args, module,
-                                                                   pip):
-    env = dict(ffstub, **hidden(tmp_path, module))
+def test_a_missing_package_is_named_with_its_install_line_exit_4(video, ffstub, speech, tmp_path, command, args,
+                                                                   module, pip):
+    env = dict(ffstub, **speech)
+    env.update(hidden(tmp_path, module))
+    env["PYTHONPATH"] = env["PYTHONPATH"] + os.pathsep + speech["PYTHONPATH"]   # the fake speech model stays
     args = [video if a == "SELF" else a for a in args]
-    code, out, err = run(command, video, *args, env=env, cwd=tmp_path)
+    if command == "narrate":
+        table = tmp_path / "table.md"
+        table.write_text("| # | Start (s) | Line |\n|---|---|---|\n| 1 | 0 | Hi. |\n", encoding="utf-8")
+        args = ["--lines", table, "--out", tmp_path / "clips"] + args
+    code, out, err = run(command, *([] if command == "narrate" else [video]), *args, env=env, cwd=tmp_path)
     assert (code, out) == (4, ""), err
     assert "Traceback" not in err
     assert err == message(command, pip) + HINT + "\n"
-    assert not any(os.path.exists(tmp_path / f) for f in ("sheet.png", "stills-folder"))
+    assert not any(os.path.exists(tmp_path / f) for f in ("sheet.png", "stills-folder", "clips"))
 
 
 def test_with_video_tools_python_set_the_device_shell_hint_is_left_out(video, ffstub, tmp_path):

@@ -10,7 +10,7 @@ import pytest
 
 from tests.tier2.conftest import REPO, clean_env
 
-COMMANDS = ["stills", "compare-video"]
+COMMANDS = ["stills", "compare-video", "narrate"]
 
 
 def copy_with_fake_venv(tmp_path):

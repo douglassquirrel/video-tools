@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""narrate --lines: one narration clip per line of a description table, with a local speech model. See README.md."""
+
+import os
+import sys
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+
+# The commands' packages live in the repository's own .venv (README, Installation), or in the
+# Python that VIDEO_TOOLS_PYTHON names (README, "Running from the Linux device shell"): if that
+# is not this Python, run again under it, whatever python3 the shell found.
+VENV = os.path.join(HERE, ".venv", "bin", "python")
+PYTHON = os.environ.get("VIDEO_TOOLS_PYTHON") or (VENV if os.path.isfile(VENV) else None)
+if PYTHON and not os.path.isfile(PYTHON):
+    sys.stderr.write("{}: VIDEO_TOOLS_PYTHON names no such file: {}\n".format(os.path.basename(__file__), PYTHON))
+    sys.exit(3)
+UNDER = PYTHON is None or os.environ.get("VIDEO_TOOLS_VENV") == PYTHON or (
+    PYTHON == VENV and os.path.realpath(sys.prefix) == os.path.realpath(os.path.join(HERE, ".venv")))
+if not UNDER:
+    os.environ["VIDEO_TOOLS_VENV"] = PYTHON
+    os.execv(PYTHON, [PYTHON, os.path.realpath(__file__)] + sys.argv[1:])
+
+# Never write __pycache__ into a video's folder or anywhere else.
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+sys.path.insert(0, HERE)
+
+from videotools.narrate import main  # noqa: E402
+
+sys.exit(main())

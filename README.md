@@ -46,6 +46,40 @@ Run the commands from the checkout, or give their full path from anywhere; they 
 `compare-video` and `narrate` find the `.venv` themselves, whichever `python3` your shell has; `cut-video` needs no
 `.venv`. Nothing is installed or copied outside the folder.
 
+### One-time set-up of the speech model
+
+Only `narrate` needs it. These are the only steps that use the network; run them once per machine. A machine that
+already has the model for training-video-tools (in `~/models/kokoro/`, with `voices.npz`) needs only step 3.
+
+1. The model and the voices, into `~/models/kokoro/`:
+
+   ```bash
+   mkdir -p ~/models/kokoro && cd ~/models/kokoro
+   base=https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main
+   curl -L -C - -o model.onnx "$base/onnx/model.onnx"
+   for v in af_heart bm_george am_michael bf_emma; do curl -L -o "$v.bin" "$base/voices/$v.bin"; done
+   ```
+
+   (`-C -` resumes an interrupted download.) Expected: `model.onnx` 325,532,232 bytes, md5
+   `0a08987b47a82ad0a67a1d92f66d95db`; each voice 522,240 bytes.
+
+2. The single voices file kokoro-onnx wants, from the per-voice files (no network; run in `~/models/kokoro`, with
+   the path to your checkout's `.venv`):
+
+   ```bash
+   ~/path/to/video-tools/.venv/bin/python -c "import numpy as np, glob, os
+   v={os.path.basename(f)[:-4]: np.fromfile(f, dtype=np.float32).reshape(-1,1,256) for f in glob.glob('*.bin')}
+   np.savez(open('voices.npz','wb'), **v); print(sorted(v))"
+   ```
+
+3. Tell the tools where it is, in `~/.video-tools.conf` (copy `video-tools.conf.example`):
+
+   ```
+   SPEECH_MODEL_DIR=~/models/kokoro
+   ```
+
+4. Check: `./narrate --lines TABLE.md --out clips --dry-run` names the model's folder and the voice.
+
 ## Quick start
 
 Look first, with `--dry-run`, which reads everything, makes every check and says what it would do, writing nothing:
@@ -208,6 +242,77 @@ compare-video: no such file: gone.mp4
 `new.mp4`'s colours shifted from 6 s; the two largest differences are the two frames after the shift, and the
 sheet, 1920×2850, shows them first.)
 
+### `narrate --lines TABLE.md --out FOLDER [--speed S] [--voice V] [--replace] [--dry-run [--phonemes]]`
+
+Speaks a **description table** with the local Kokoro speech model, for audio description, whose timed lines are
+spoken fast and mixed into a video's sound. `TABLE.md` is any Markdown file holding a table with the columns `#` (a
+whole number from 1, each once), `Start (s)` (seconds) and `Line` (the text, spoken as written: quotes, colons,
+non-ASCII and all; `\|` for a pipe), found by header in any order; other columns, other tables and everything
+outside the table are ignored. Each line goes to its own trimmed clip in `FOLDER` (made if missing), `01.wav`,
+`02.wav`, … (more digits when the numbers need them), and `timing.json` there holds the voice, speed, model and
+sample rate and, per line, its number, start, text and real length in seconds, rewritten after each clip. `--speed`
+defaults to 1.5 (the model accepts 0.5 to 2.0) and `--voice` to `VOICE` in `~/.video-tools.conf`, else `af_heart`.
+Each clip's real length is printed, and where a line's start plus its length passes the next line's start, a
+warning on stderr names both (exit 0 still: the writer decides). Nothing is written over an existing clip or
+`timing.json` without `--replace`, which lists them first. `--dry-run` lists each line with its start and an
+estimate at 2.6 words a second times the speed, and writes nothing. Any other argument (such as a training
+script, `narrate SCRIPT.md`) is refused, exit 2: that form belongs to training-video-tools.
+
+**A `Say` column, where the written line is said wrongly.** A table may also have a `Say` column, anywhere among
+the others. A row whose `Say` is filled in is spoken from it instead of from `Line`, and `Say` may hold `[[…]]`
+spans of phonemes, given to the voice as they stand, the text around them phonemized as usual. A row whose `Say` is
+empty, and every row of a table without the column, is spoken from `Line`. Every line is given to the voice with
+`, ` in front, and a quiet first consonant (s, f, θ, ʃ, h) doubled, so the voice says it in full at speed 1.5.
+`timing.json` keeps the `Line` as each line's `text`, and the dry run's estimate counts the words of what is
+spoken. A `Say` whose spans are wrong (an unclosed `[[`, a stray `]]`, an empty span, a symbol the voice does not
+know) is refused before the model is loaded, naming the row. To write a span, see what the voice is given:
+`--dry-run --phonemes` prints each line's `Say` and its phoneme string, spans spliced in; without `--dry-run`,
+`--phonemes` is refused.
+
+```console
+$ ./narrate --lines table.md --out clips --dry-run --phonemes
+narrate (dry run): table.md
+voice af_heart, speed 1.5, model kokoro-82m from /Users/you/models/kokoro
+01.wav  at 0.10 s  ~1.8 s  A kite climbs over the harbour wall.
+    phonemes: , ɐ kˈaɪt klˈaɪmz ˌoʊvɚ ðə hˈɑːɹbɚ wˈɔːl.
+02.wav  at 2.00 s  ~0.5 s  Silas smiles.
+    say: [[sˈaɪləs]] smiles.
+    phonemes: , ssˈaɪləs smˈaɪlz.
+03.wav  at 3.00 s  ~1.3 s  On screen: “Harbour”; it's dusk.
+    phonemes: , ˌɔn skɹˈiːn: “hˈɑːɹbɚ”; ɪts dˈʌsk.
+3 lines, about 4 s of speech; nothing written (dry run).
+$ ./narrate --lines table.md --out clips
+01.wav  1.245 s
+02.wav  0.725 s
+03.wav  1.277 s
+Wrote 3 clips and clips/timing.json
+$ ./narrate --lines table.md --out clips
+narrate: these would be written over; delete them, or run with --replace:
+  clips/01.wav
+  clips/02.wav
+  clips/03.wav
+  clips/timing.json
+```
+
+(13 November 2026, the real model on an invented three-line table whose `Say` column follows `Line`; the home
+folder shortened to `/Users/you`. The clips and `timing.json` are byte for byte those training-video-tools'
+`narrate --lines` writes from the same table.)
+
+**How fast.** kokoro-onnx 0.6.1 accepts `speed` from 0.5 to 2.0 and refuses more, so 2.0 is the fastest. Measured
+in training-video-tools on an invented 15-word line in `af_heart`: 1.0 took 4.69 s (3.4 words a second), 1.5 took
+2.98 s (5.4) and 2.0 took 2.62 s (6.1). A table that assumes five words a second is close to speed 1.5.
+
+### Settings: `~/.video-tools.conf`
+
+`KEY=value` lines, `#` comments, optional quotes, `~` for your home folder in a folder's path; read, never run.
+`VIDEO_TOOLS_CONF` in the environment names another file. Only `narrate` and `setup-linux` read it; a line that is
+not `KEY=value`, or any other key, is refused naming the line.
+
+| Key | Meaning |
+|---|---|
+| `SPEECH_MODEL_DIR` | The folder holding `model.onnx` and `voices.npz`. Required by `narrate`. |
+| `VOICE` | `narrate --lines`' voice when `--voice` is not given (else `af_heart`). |
+
 ## Errors and exit codes
 
 Every refusal is a line on stderr starting with the command's name, saying what is wrong and what to do; never a
@@ -235,9 +340,9 @@ traceback. `cut-video` has its own codes; the other commands share theirs (the s
 | Exit | Meaning | What to do |
 |---|---|---|
 | 0 | Success; with `--dry-run`, everything checked and nothing written. `compare-video` reports and never judges: 0 whenever it runs. | |
-| 2 | Bad arguments (see `--help`). For `stills`: a first argument ending `.md` (a training script), no choice of `--at`, `--every` or `--changes`, or two; `--threshold` without `--changes` or outside 0 to 1; `--detect-fps` of 0 or less or without `--changes`; `--every` of 0 or less; a time at or past the video's end (the length is given); `--from` or `--until` with `--at`, with `--sheet` alone or not a time; `--from` at or past the end; `--until` not after `--from`; a `--grid` that is not two whole numbers of at least 1. | Fix the command line. |
-| 3 | An input refuses, and nothing is written. For `stills`: any still, `stills.txt` or sheet it would write already exists (with `--from` or `--until`, `stills.txt` is added to instead, and a still not in it is written over); for `--sheet` alone, `stills.txt` or a still it names is missing, it lists no stills, a line of it is not `TIME NAME`, or the video is missing. For `compare-video`: either file is missing, or the sheet exists. A settings file that cannot be read (the line named). `VIDEO_TOOLS_PYTHON` names no such file. | Fix the input, or move the output away. |
-| 4 | A package (numpy, soundfile, Pillow, kokoro-onnx) is not installed in the Python running the command: one line names it, its `pip install` line and, when `VIDEO_TOOLS_PYTHON` is unset, the device-shell set-up; ffmpeg or ffprobe is not on PATH; ffmpeg failed (its output is shown). What was written before stays. | Install as above, or read ffmpeg's message. |
+| 2 | Bad arguments (see `--help`). For `narrate`: no `--lines`, no `--out`, an argument that is not a flag (a training script), a speed outside 0.5 to 2.0, `--phonemes` without `--dry-run`. For `stills`: a first argument ending `.md` (a training script), no choice of `--at`, `--every` or `--changes`, or two; `--threshold` without `--changes` or outside 0 to 1; `--detect-fps` of 0 or less or without `--changes`; `--every` of 0 or less; a time at or past the video's end (the length is given); `--from` or `--until` with `--at`, with `--sheet` alone or not a time; `--from` at or past the end; `--until` not after `--from`; a `--grid` that is not two whole numbers of at least 1. | Fix the command line. |
+| 3 | An input refuses, and nothing is written. For `stills`: any still, `stills.txt` or sheet it would write already exists (with `--from` or `--until`, `stills.txt` is added to instead, and a still not in it is written over); for `--sheet` alone, `stills.txt` or a still it names is missing, it lists no stills, a line of it is not `TIME NAME`, or the video is missing. For `compare-video`: either file is missing, or the sheet exists. For `narrate`: the table is missing, has no `#`, `Start (s)` and `Line` columns or a row that cannot be spoken (named), or a `Say` whose spans are wrong (the row and the problem named); `SPEECH_MODEL_DIR` is not set or has no model; the voice is not in the voices file; a clip or `timing.json` exists without `--replace`. A settings file that cannot be read (the line named). `VIDEO_TOOLS_PYTHON` names no such file. | Fix the input, or move the output away. |
+| 4 | A package (numpy, soundfile, Pillow, kokoro-onnx) is not installed in the Python running the command: one line names it, its `pip install` line and, when `VIDEO_TOOLS_PYTHON` is unset, the device-shell set-up; ffmpeg or ffprobe is not on PATH; ffmpeg failed (its output is shown); the speech model failed on a line (named). What was written before stays. | Install as above, or read ffmpeg's message. |
 
 ## Testing
 
