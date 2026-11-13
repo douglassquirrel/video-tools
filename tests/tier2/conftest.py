@@ -160,8 +160,7 @@ def fake_media(path, **fields):
     """A fake media file the stub understands: key=value lines."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        for k, v in fields.items():
-            f.write(f"{k}={v}\n")
+        f.writelines(f"{k}={v}\n" for k, v in fields.items())
     return path
 
 

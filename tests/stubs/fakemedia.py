@@ -37,8 +37,7 @@ def read_fake(path):
 
 def write_fake(path, fields):
     with open(path, "w", encoding="utf-8") as f:
-        for k, v in fields.items():
-            f.write(f"{k}={v}\n")
+        f.writelines(f"{k}={v}\n" for k, v in fields.items())
 
 
 def log(entry):
@@ -107,8 +106,8 @@ def ffmpeg(args):
     if "metadata=print" in arg_after(args, "-vf", ""):   # the scene scan: the shape ffmpeg 9.0.2 printed
         fail_if("scenes")
         fake = read_fake(arg_after(args, "-i"))
-        # A seek before -i (item 28): only the cuts in [-ss, -to) are seen; times stay on the file's
-        # clock only with -copyts, as real ffmpeg does ("Things checked").
+        # A seek before -i (training-video-tools' item 28): only the cuts in [-ss, -to) are seen; times stay on the file's
+        # clock only with -copyts, as real ffmpeg does (training-video-tools' "Things checked").
         before = args[:args.index("-i")]
         start, end = float(arg_after(before, "-ss", "0")), float(arg_after(before, "-to", "1e9"))
         cuts = [float(v) for v in fake.get("scenes", "").split(",") if v]
@@ -138,11 +137,11 @@ def ffmpeg(args):
         fail_if("audio")
         fake = read_fake(arg_after(args, "-i"))
         rate = int(arg_after(args, "-ar", "48000"))
-        total = int(round(float(fake.get("duration", "0")) * rate))
+        total = round(float(fake.get("duration", "0")) * rate)
         loud = struct.pack("<h", 3277)          # about -20 dBFS
         out = bytearray(total * 2)
         for span in [v for v in fake.get("tone", "").split(",") if v]:
-            a, b = (int(round(float(v) * rate)) for v in span.split("-"))
+            a, b = (round(float(v) * rate) for v in span.split("-"))
             out[a * 2:b * 2] = loud * (b - a)
         sys.stdout.buffer.write(out)
         return 0

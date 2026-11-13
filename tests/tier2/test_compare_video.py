@@ -2,6 +2,7 @@
 supplies the media (fake files whose `tone` spans are loud and whose `colours` change at times)."""
 
 import os
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -32,7 +33,7 @@ def test_help_and_usage():
 
 
 def test_a_file_against_itself_reports_every_measure_and_no_difference(pair, ffstub):
-    new, old = pair
+    new, _old = pair
     code, out, err = run("compare-video", new, new, env=ffstub)
     assert (code, err) == (0, "")
     assert out == (f"NEW {new}\n"
@@ -133,22 +134,22 @@ def test_a_missing_file_is_refused_by_name(pair, tmp_path, ffstub):
 
 def test_every_must_be_positive(pair, ffstub):
     new, old = pair
-    code, out, err = run("compare-video", new, old, "--every", "0", env=ffstub)
+    code, _out, err = run("compare-video", new, old, "--every", "0", env=ffstub)
     assert code == 2 and "--every must be more than 0" in err
 
 
 def test_ffmpeg_failing_on_a_frame_is_reported_exit_4(pair, ffstub):
     new, old = pair
-    code, out, err = run("compare-video", new, old, env=dict(ffstub, FFSTUB_FAIL="frame"))
+    code, _out, err = run("compare-video", new, old, env=dict(ffstub, FFSTUB_FAIL="frame"))
     assert code == 4
     assert err.startswith(f"compare-video: ffmpeg failed (exit 1) reading the frame of {new} at 0.000 s; its output follows\n")
 
 
 def test_the_inputs_are_never_modified(pair, ffstub):
     new, old = pair
-    before = open(new, "rb").read(), open(old, "rb").read()
+    before = Path(new).read_bytes(), Path(old).read_bytes()
     assert run("compare-video", new, old, env=ffstub)[0] == 0
-    assert (open(new, "rb").read(), open(old, "rb").read()) == before
+    assert (Path(new).read_bytes(), Path(old).read_bytes()) == before
 
 
 def test_a_file_that_does_not_state_its_frame_count_has_its_frames_counted(pair, tmp_path, ffstub):
@@ -166,7 +167,7 @@ def test_a_file_that_does_not_state_its_frame_count_has_its_frames_counted(pair,
 def test_frames_are_read_at_the_new_videos_own_size(tmp_path, ffstub):
     new = media(tmp_path, "tall.mp4", width="480", height="854")
     old = media(tmp_path, "tall-old.mp4", width="480", height="854")
-    code, out, err = run("compare-video", new, old, "--every", "50", env=ffstub)
+    code, _out, err = run("compare-video", new, old, "--every", "50", env=ffstub)
     assert (code, err) == (0, "")
     frames = [c["ffmpeg"] for c in ff_calls(ffstub) if "ffmpeg" in c and "-frames:v" in c["ffmpeg"]]
     assert {f[f.index("-s") + 1] for f in frames} == {"480x854"}

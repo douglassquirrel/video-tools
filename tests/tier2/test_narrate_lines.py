@@ -4,6 +4,7 @@ speech model; timing.json; the overrun warning; --dry-run; --replace; every refu
 import json
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -48,7 +49,7 @@ def test_each_line_becomes_a_clip_named_by_its_number_with_timing_json(table, sp
                                    f"03.wav  {stub_length(3):.3f} s", f"Wrote 3 clips and {out / 'timing.json'}"]
     creates = [c["create"] for c in stub_calls(speech) if "create" in c]
     assert [c["text"] for c in creates] == [", A KITE CLIMBS OVER THE HARBOUR WALL.", ", ON SCREEN: “HARBOUR”; IT'S DUSK.",
-                                            ", GULLS WHEEL | DIP."]              # as phonemes with the lead-in (item 30)
+                                            ", GULLS WHEEL | DIP."]              # as phonemes with the lead-in (training-video-tools' item 30)
     assert {(c["voice"], c["speed"], c["lang"], c["is_phonemes"]) for c in creates} == {("bm_george", 1.5, "en-us", True)}
 
 
@@ -97,7 +98,7 @@ SCRIPT_FORM = ("narrate here takes --lines TABLE.md --out FOLDER; the form that 
 
 @pytest.mark.parametrize("args, message", [
     (["--lines", "T", "--out", "F", "--speed", "1", "S"], "S: " + SCRIPT_FORM),
-    (["--lines", "T", "--out", "F", "--speed", "1", "--phonemes"],          # with --dry-run allowed since item 30
+    (["--lines", "T", "--out", "F", "--speed", "1", "--phonemes"],          # with --dry-run allowed since training-video-tools' item 30
      "--phonemes goes with --dry-run (it only shows what the voice would be given)"),
     (["--lines", "T", "--speed", "1"], "--lines needs --out FOLDER for the clips"),
     (["--lines", "T", "--out", "F", "--speed", "2.5"], "--speed should be from 0.5 to 2.0 (the model's range), not 2.5"),
@@ -123,7 +124,7 @@ def test_a_table_that_cannot_be_spoken_or_a_missing_file_is_refused_in_words(spe
 
 
 def test_the_voice_flag_wins_and_without_a_config_voice_af_heart_is_the_default(table, speech, tmp_path):
-    code, stdout, err = run("narrate", "--lines", table, "--out", tmp_path / "a", "--voice", "zz_test", env=speech)
+    code, _stdout, err = run("narrate", "--lines", table, "--out", tmp_path / "a", "--voice", "zz_test", env=speech)
     assert code == 0
     timing = json.loads((tmp_path / "a" / "timing.json").read_text())
     assert (timing["voice"], timing["speed"]) == ("zz_test", 1.5)          # no --speed: 1.5 (Squirrel, 17 October 2026)
@@ -131,10 +132,10 @@ def test_the_voice_flag_wins_and_without_a_config_voice_af_heart_is_the_default(
     assert {c["speed"] for c in creates} == {1.5}
     conf = tmp_path / "quiet.conf"
     conf.write_text(f"SPEECH_MODEL_DIR={speech['SPEECH_MODEL_DIR_FOR_TESTS']}\n")
-    code, stdout, err = run("narrate", "--lines", table, "--out", tmp_path / "b", "--speed", "1",
+    code, _stdout, err = run("narrate", "--lines", table, "--out", tmp_path / "b", "--speed", "1",
                             env={**speech, "VIDEO_TOOLS_CONF": str(conf)})
     assert code == 0 and json.loads((tmp_path / "b" / "timing.json").read_text())["voice"] == "af_heart"
-    code, stdout, err = run("narrate", "--lines", table, "--out", tmp_path / "c", "--speed", "1", "--voice", "nobody", env=speech)
+    code, _stdout, err = run("narrate", "--lines", table, "--out", tmp_path / "c", "--speed", "1", "--voice", "nobody", env=speech)
     assert (code, err) == (3, "narrate: the model has no voice 'nobody' (it has af_heart, bm_george, zz_test)\n")
 
 
@@ -163,7 +164,7 @@ def say_table(tmp_path):
 
 def test_a_row_with_say_is_spoken_from_it_spans_as_phonemes_and_timing_keeps_the_line(say_table, speech, tmp_path):
     out = tmp_path / "clips"
-    code, stdout, err = run("narrate", "--lines", say_table, "--out", out, "--speed", "1.5", env=speech)
+    code, _stdout, err = run("narrate", "--lines", say_table, "--out", out, "--speed", "1.5", env=speech)
     assert (code, err) == (0, "")
     creates = [c["create"] for c in stub_calls(speech) if "create" in c]
     assert [(c["text"], c["is_phonemes"], c["lang"]) for c in creates] == [
@@ -219,7 +220,7 @@ def test_a_say_with_a_wrong_span_is_refused_before_the_model_is_loaded(speech, t
 
 
 def test_help_names_the_optional_say_column_and_phonemes_for_a_line(speech):
-    code, stdout, err = run("narrate", "--help", env=speech)
+    code, stdout, _err = run("narrate", "--help", env=speech)
     text = " ".join(stdout.split())
     assert code == 0
     assert "('#', 'Start (s)', 'Line', and optionally 'Say', spoken instead of 'Line', [[…]] spans allowed)" in text
@@ -289,9 +290,9 @@ def test_a_missing_speech_package_is_a_useful_error_exit_4_for_a_run_and_for_pho
 
 def test_the_table_and_the_config_are_never_modified(table, speech, tmp_path):
     conf = speech["VIDEO_TOOLS_CONF"]
-    before = (open(table, "rb").read(), open(conf, "rb").read())
+    before = (Path(table).read_bytes(), Path(conf).read_bytes())
     assert run("narrate", "--lines", table, "--out", tmp_path / "c", env=speech)[0] == 0
-    assert (open(table, "rb").read(), open(conf, "rb").read()) == before
+    assert (Path(table).read_bytes(), Path(conf).read_bytes()) == before
 
 
 def test_timing_json_keeps_non_ascii_text_as_written(table, speech, tmp_path):

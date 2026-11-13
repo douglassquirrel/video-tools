@@ -19,7 +19,7 @@ but for the names of their settings (see "Notes for users").
 
 ## Requirements
 
-- macOS on Apple silicon (checked on macOS 26) with [Homebrew](https://brew.sh); Linux with Python 3.10 to 3.13 for
+- macOS on Apple silicon (checked on macOS 27) with [Homebrew](https://brew.sh); Linux with Python 3.10 to 3.13 for
   the Linux shell (see "Running from the Linux device shell").
 - `ffmpeg` and `ffprobe`: `brew install ffmpeg` installs both.
 - `cut-video` needs nothing more: it runs on the Mac's own `/usr/bin/python3` (3.9 or later), standard library only.
@@ -410,23 +410,36 @@ traceback. `cut-video` has its own codes; the other commands share theirs (the s
 ## Testing
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # once
-.venv/bin/pytest            # the whole suite, with coverage
+/opt/homebrew/bin/python3.12 -m venv .venv                                   # once
+.venv/bin/pip install -r requirements.txt -r requirements-dev.txt            # once
+.venv/bin/pytest            # the whole suite, with coverage (about a minute)
 .venv/bin/ruff check .      # lint
 ```
 
-The suite needs neither ffmpeg nor a network. `tests/tier1/` tests the pure parts (reading and writing `.srt`,
-finding phrases, where the cut falls, the ffmpeg arguments). `tests/tier2/` runs the command against stand-ins for
-`ffmpeg` and `ffprobe` (`tests/stubs/ffstub.py`, put on `PATH` by `tests/tier2/conftest.py`) that record their
-arguments and fail on demand: every refusal and exit code, `--help`, `--dry-run`, no partial file after a failure,
-and the inputs unchanged byte for byte. Run one tier with `.venv/bin/pytest tests/tier1`. Coverage: 100% of
-`videotools/` (3 November 2026, 56 tests).
+The suite needs no ffmpeg, no speech model and no network. `tests/tier1/` tests the pure parts (reading and writing
+`.srt`, finding phrases, where a cut falls, the description table, phoneme spans, the stills' times and names, the
+compare measures, the settings file). `tests/tier2/` runs each command against stand-ins: for `cut-video`, `ffmpeg`
+and `ffprobe` from `tests/stubs/ffstub.py`, which record their arguments and fail on demand; for the others, an
+`ffmpeg` and `ffprobe` that read fake media files (`tests/stubs/fakemedia.py`), a fake speech model
+(`tests/stubs/kokoro_onnx/`) and a fake `python3` for `setup-linux` (`tests/stubs/pystub.py`), all put on `PATH` or
+`PYTHONPATH` by `tests/tier2/conftest.py`. Every refusal and exit code, `--help`, `--dry-run`, no partial file after
+a failure, and the inputs unchanged byte for byte are tested there. The commands under test run from an empty
+temporary folder, so even a fault cannot write into the checkout. Run one tier with `.venv/bin/pytest tests/tier1`.
+Coverage: 99% of `videotools/` (13 November 2026, 277 tests); the one line not measured is `setup-linux`'s refusal
+of a venv inside the checkout, which is tested on a copy of the checkout that coverage does not follow.
 
-**Manual check with the real ffmpeg** (not automated): make a short clip and an invented transcript in a scratch
-folder, then run `--help`, `--dry-run` and a real cut, and check the result with
-`ffprobe -v error -show_entries format=duration:stream=codec_type -of compact out/clip-cut.mp4`. Done on
-3 November 2026 with ffmpeg 9.0.2 on a 10-second test clip: the 7-second cut came out at 7.000000 s with one video
-and one audio stream, and a second run into the same folder refused with exit 9.
+The tests of `stills`, `compare-video`, `narrate --lines` and `setup-linux` came from training-video-tools with
+their code. Each was shown to fail when the code it guards was broken on purpose, and tests were added for what no
+test there pinned.
+
+**Manual checks with the real programs** (not automated), recorded 13 November 2026 with ffmpeg 9.0.2 and the
+Kokoro model on invented clips and an invented table, in a scratch folder: the examples in "Usage" are those runs.
+`stills`, `compare-video` and `narrate --lines` each wrote, byte for byte, what training-video-tools' own command
+writes from the same inputs; `setup-linux --dry-run` was run on the Mac's own Python 3.9.6. For `cut-video`: make a
+short clip and an invented transcript, then run `--help`, `--dry-run` and a real cut, and check the result with
+`ffprobe -v error -show_entries format=duration:stream=codec_type -of compact out/clip-cut.mp4`. Done on 3 November
+2026 on a 10-second test clip: the 7-second cut came out at 7.000000 s with one video and one audio stream, and a
+second run into the same folder refused with exit 9.
 
 ## Known limitations and non-goals
 
@@ -434,12 +447,30 @@ and one audio stream, and a second run into the same folder refused with exit 9.
 - It cuts at caption boundaries, not at the exact word; whisper-style captions are short enough for that.
 - It only cuts the beginning and the end: nothing out of the middle, no joining.
 - It re-encodes, so a cut takes time and is not bit-for-bit the original's quality settings.
+- `stills --changes` finds what ffmpeg's scene detection scores as a change; a cut it scores low (such as between two
+  flat colours of similar brightness) is missed. Lower `--threshold`, or use `--every`.
+- `compare-video` reports and never judges: whether a difference matters is yours to say.
+- `narrate` speaks English (`en-us`) only, with the Kokoro-82M model's voices; it never mixes the clips into a video.
+- The forms of `stills` and `narrate` that take a training script are training-video-tools', and are refused here.
+- Two commands write over their own earlier output, and only these two: `narrate --lines --replace`, when asked, and
+  `stills` with `--from` or `--until`, which adds to `stills.txt` and writes again over a still a cut-off run left
+  unlisted. Nothing ever writes over an input.
 
 ## Notes for users
 
 - 3 November 2026: `cut-video` is new.
+- 13 November 2026: `stills`, `compare-video`, `narrate --lines` and `setup-linux` are here, moved from
+  training-video-tools with the same forms, flags, files, messages and exit codes. What changes for you:
+  - Install the packages: `brew install python@3.12`, then in the checkout `/opt/homebrew/bin/python3.12 -m venv .venv`
+    and `.venv/bin/pip install -r requirements.txt` ("Installation").
+  - Settings: `~/.video-tools.conf` (or the file `VIDEO_TOOLS_CONF` names), with `SPEECH_MODEL_DIR` and `VOICE`
+    only; any other setting is refused. training-video-tools' `~/.training-video-tools.conf` is not read: copy its
+    `SPEECH_MODEL_DIR` line across.
+  - In the Linux device shell, `VIDEO_TOOLS_PYTHON` and `VIDEO_TOOLS_CONF` (not `TRAINING_VIDEO_TOOLS_…`), which
+    `setup-linux` prints; it installs four packages (numpy, soundfile, kokoro-onnx, Pillow).
+  - `stills SCRIPT.md …` and `narrate SCRIPT.md` are refused (exit 2): run them from training-video-tools.
 
 ## Contributing
 
-Dev tooling (pytest, pytest-cov, ruff) goes in a gitignored `.venv/` from `requirements-dev.txt`. Every change
-starts with a failing test.
+Dev tooling (pytest, pytest-cov, ruff) goes in the same gitignored `.venv/`, from `requirements-dev.txt`. Every
+change starts with a failing test.

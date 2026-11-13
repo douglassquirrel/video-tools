@@ -1,6 +1,6 @@
 """Running ffmpeg and ffprobe: found on PATH, every exit status checked, output parsed.
 
-The formats parsed here were recorded from ffmpeg 9.0.2 (PLAN.md, "Things checked" 6).
+The formats parsed here were recorded from ffmpeg 9.0.2 (training-video-tools' PLAN.md, "Things checked" 6).
 Standard library only.
 """
 
@@ -28,7 +28,7 @@ def run(name, args, doing, partial=None, stdin=None, binary=False, want_stderr=F
     saying what it was doing, with the program's own output and the file that may be partial.
     Nothing is deleted."""
     program = require(name)
-    p = subprocess.run([program] + args, capture_output=True, text=not binary, stdin=stdin)
+    p = subprocess.run([program] + args, capture_output=True, text=not binary, stdin=stdin, check=False)
     if p.returncode != 0:
         tail = f", and {partial} may be partial" if partial else ""
         stderr = p.stderr.decode(errors="replace") if binary else p.stderr
@@ -57,9 +57,9 @@ def frame_at(path, seconds, width, height):
 def scene_report(path, threshold, rate=10, window=None):
     """ffmpeg's report of the frames whose scene-change score is above `threshold` (0 to 1): the
     stderr of `fps=RATE,select='gt(scene,T)',metadata=print` over the whole file, the audio not
-    decoded (PLAN.md item 24, 5; item 28, 1: the scoring at `rate` frames a second, a cut reported
+    decoded (training-video-tools' PLAN.md item 24, 5; item 28, 1: the scoring at `rate` frames a second, a cut reported
     at the first sampled frame after it). With `window` (start, end) in seconds, a seek before the
-    input, `-to` the end and `-copyts` so the times stay on the file's clock (item 28, 4)."""
+    input, `-to` the end and `-copyts` so the times stay on the file's clock (training-video-tools' item 28, 4)."""
     select = f"fps={rate:g},select='gt(scene,{threshold:g})',metadata=print"
     seek = ["-ss", f"{window[0]:.3f}", "-to", f"{window[1]:.3f}", "-copyts"] if window else []
     return run("ffmpeg", ["-nostdin", "-hide_banner"] + seek + ["-i", path, "-an", "-vf", select, "-f", "null", "-"],
@@ -76,8 +76,8 @@ def count_frames(path):
 def probe(path):
     """{"duration": seconds, "size": bytes, "fps": float, "width", "height", "frames", "sample_rate",
     "channels"} of a media file, from ffprobe's JSON."""
-    out = run("ffprobe", ["-v", "error", "-show_entries", "format=duration,size:stream=index,codec_type,"
-                          "nb_frames,r_frame_rate,width,height,sample_rate,channels", "-of", "json", path],
+    out = run("ffprobe", ["-v", "error", "-show_entries", ("format=duration,size:stream=index,codec_type,"
+                          "nb_frames,r_frame_rate,width,height,sample_rate,channels"), "-of", "json", path],
               f"reading {path}")
     data = json.loads(out)
     info = {"duration": float(data["format"]["duration"]), "size": int(data["format"]["size"]),
@@ -98,7 +98,7 @@ def levels(path):
     """(mean dB, peak dB) of a file's audio, from the volumedetect filter's last report."""
     program = require("ffmpeg")
     p = subprocess.run([program, "-hide_banner", "-i", path, "-map", "0:a", "-af", "volumedetect", "-f", "null", "-"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, check=False)
     if p.returncode != 0:
         raise cli.Failure(f"ffmpeg failed (exit {p.returncode}) measuring the levels of {path}; its output follows\n"
                           + p.stderr.strip(), cli.EXTERNAL)

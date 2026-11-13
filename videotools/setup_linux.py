@@ -26,7 +26,7 @@ def progress(message):
 
 def run(argv):
     """Run a program with an argument list (never a shell line); (exit code, its output)."""
-    p = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    p = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
     return p.returncode, p.stdout
 
 

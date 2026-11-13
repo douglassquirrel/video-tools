@@ -1,4 +1,4 @@
-"""`stills VIDEO …` (PLAN.md item 24): frames of a video file at given times, every so many seconds
+"""`stills VIDEO …` (training-video-tools' PLAN.md item 24): frames of a video file at given times, every so many seconds
 or where the picture changes, written singly and, with --sheet, on a labelled contact sheet. The
 pure parts and the run live here; `stills.py` reads the command line.
 """
@@ -51,7 +51,7 @@ def parse_time(text, flag):
 
 def parse_window(start_text, end_text, length):
     """(start, end) of --from and --until in seconds: 0 and the length when absent; --from before the
-    end, --until after --from and held to the length (PLAN.md item 28, 3)."""
+    end, --until after --from and held to the length (training-video-tools' PLAN.md item 28, 3)."""
     start = parse_time(start_text, "--from") if start_text is not None else 0.0
     end = parse_time(end_text, "--until") if end_text is not None else length
     if start >= length:
@@ -83,7 +83,7 @@ def part_name(seconds):
 
 def write_still(img, folder, seconds):
     """Save `img` as the still at `seconds`: to its part name, then its line into stills.txt, then
-    the rename, so every still with its name is listed at every moment (PLAN.md item 29, 1)."""
+    the rename, so every still with its name is listed at every moment (training-video-tools' PLAN.md item 29, 1)."""
     import os
     part, final = os.path.join(folder, part_name(seconds)), os.path.join(folder, still_name(seconds))
     img.save(part, format="PNG")        # the part name says nothing about the format
@@ -115,7 +115,7 @@ def cell_size(width, height):
 def change_times(report, window=None):
     """The first frame, then the `pts_time:` of every frame ffmpeg's `select='gt(scene,T)',metadata=print`
     chose, from its stderr; a frame at 0 is not listed twice. With a `window` (start, end), only the
-    times in it, and the first frame only when the window starts at 0 (PLAN.md item 28, 5)."""
+    times in it, and the first frame only when the window starts at 0 (training-video-tools' PLAN.md item 28, 5)."""
     start, end = window or (0.0, None)
     times = [0.0] if start == 0 else []
     for m in re.finditer(r"\bpts_time:(\S+)", report):
@@ -163,7 +163,7 @@ def parse_threshold(text):
 
 def read_listing(path):
     """The (time, name) of every line of a stills.txt, as written by listing_line; refused in words
-    when it is missing or a line is not `TIME NAME` (PLAN.md item 28, 7)."""
+    when it is missing or a line is not `TIME NAME` (training-video-tools' PLAN.md item 28, 7)."""
     import os
     if not os.path.isfile(path):
         raise cli.Failure(f"{path} is missing; --sheet alone draws the stills a folder's listing names")
@@ -186,7 +186,7 @@ def stills_said(count):
 
 def sheet_of_folder(args):
     """`stills VIDEO --sheet SHEET.png --out FOLDER`: the sheet of every still FOLDER/stills.txt lists,
-    in that order, read from the PNGs; nothing is read from the video (PLAN.md item 28, 7)."""
+    in that order, read from the PNGs; nothing is read from the video (training-video-tools' PLAN.md item 28, 7)."""
     import os
     video, folder = args.VIDEO, args.out
     grid = parse_grid(args.grid)
@@ -268,7 +268,7 @@ def run(args):
             raise cli.Failure(f"{t:g} s is past the end of {video} ({length:.3f} s)", cli.USAGE)
     stills = [(t, os.path.join(folder, still_name(t))) for t in times]
     listed = {name for _, name in read_listing(listing)} if os.path.isfile(listing) else set()
-    for _, path in stills:                  # item 29, 2: in a window, an unlisted still is a kill's leftover
+    for _, path in stills:                  # training-video-tools' item 29, 2: in a window, an unlisted still is a kill's leftover
         if window and os.path.basename(path) not in listed and os.path.lexists(path):
             sys.stderr.write(f"stills: {os.path.basename(path)} was there but not listed; written again\n")
         else:

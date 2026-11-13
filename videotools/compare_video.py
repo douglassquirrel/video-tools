@@ -47,7 +47,7 @@ def main(argv=None):
 def envelope(samples, rate, window=WINDOW):
     """The RMS of each whole window of `samples` (int16 or float), as floats."""
     import numpy as np
-    n = int(round(rate * window))
+    n = round(rate * window)
     whole = (len(samples) // n) * n
     blocks = np.asarray(samples[:whole], dtype=np.float64).reshape(-1, n)
     return np.sqrt((blocks * blocks).mean(axis=1))

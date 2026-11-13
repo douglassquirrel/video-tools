@@ -1,4 +1,4 @@
-"""The description table of narrate --lines (item 26): columns by header, in any order; every
+"""The description table of narrate --lines (training-video-tools' item 26): columns by header, in any order; every
 refusal in words; the clip names, the overrun and the estimate."""
 
 import pytest

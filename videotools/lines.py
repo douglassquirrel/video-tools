@@ -1,6 +1,6 @@
-"""A description table (PLAN.md item 26): one Markdown table whose columns `#`, `Start (s)` and
+"""A description table (training-video-tools' PLAN.md item 26): one Markdown table whose columns `#`, `Start (s)` and
 `Line` are found by header, in any order; the rest ignored. Read for `narrate --lines`. An
-optional `Say` column (item 30) holds what is spoken instead of `Line`, with `[[…]]` spans.
+optional `Say` column (training-video-tools' item 30) holds what is spoken instead of `Line`, with `[[…]]` spans.
 """
 
 import re
@@ -14,8 +14,7 @@ SAY = "Say"
 def cells(row):
     """The cells of a table row: split on `|` that is not escaped, `\\|` a pipe, each trimmed."""
     inner = row.strip()
-    if inner.startswith("|"):
-        inner = inner[1:]
+    inner = inner.removeprefix("|")
     if inner.endswith("|") and not inner.endswith("\\|"):
         inner = inner[:-1]
     return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
@@ -90,7 +89,7 @@ def parse(text, name):
 
 
 WORDS_PER_SECOND = 2.6    # at speed 1, as narrate estimates a cue
-SPEED_RANGE = (0.5, 2.0)  # what kokoro-onnx 0.6.1 accepts (PLAN.md "Things checked", 17 October 2026)
+SPEED_RANGE = (0.5, 2.0)  # what kokoro-onnx 0.6.1 accepts (training-video-tools' PLAN.md, "Things checked", 17 October 2026)
 
 
 def clip_name(n, largest):

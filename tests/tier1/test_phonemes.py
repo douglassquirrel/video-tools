@@ -34,7 +34,7 @@ def test_the_vocabulary_is_the_114_symbols_of_kokoro_onnx_0_6_1():
 
 
 def test_splicing_keeps_the_spaces_beside_a_span_even_though_the_phonemizer_strips_them():
-    strip_and_upper = lambda text: text.strip().upper()     # noqa: E731  as the model's phonemize() does
+    strip_and_upper = lambda text: text.strip().upper()
     assert phonemes.splice("Say [[kɑːɹpˈæθi]] here", strip_and_upper) == "SAY kɑːɹpˈæθi HERE"
     assert phonemes.splice("[[a]][[b]] c", strip_and_upper) == "ab C"
     assert phonemes.splice("plain words ", strip_and_upper) == "PLAIN WORDS"

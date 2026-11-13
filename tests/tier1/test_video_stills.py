@@ -1,4 +1,4 @@
-"""stills on a video file (item 24): the times, the names, the grid and ffmpeg's scene report,
+"""stills on a video file (training-video-tools' item 24): the times, the names, the grid and ffmpeg's scene report,
 as pure functions."""
 
 import os
@@ -62,7 +62,7 @@ REPORT = """[Parsed_metadata_1 @ 0x7a0c62280] frame:0    pts:25600   pts_time:2
 [Parsed_metadata_1 @ 0x7a0c62280] lavfi.scene_score=0.400000
 [Parsed_metadata_1 @ 0x7a0c62280] frame:1    pts:51200   pts_time:4.04
 [Parsed_metadata_1 @ 0x7a0c62280] lavfi.scene_score=0.350000
-"""   # the shape real ffmpeg 9.0.2 printed (PLAN.md "Things checked", 17 October 2026)
+"""   # the shape real ffmpeg 9.0.2 printed (training-video-tools' PLAN.md, "Things checked", 17 October 2026)
 
 
 def test_the_changes_are_the_first_frame_then_each_pts_time_of_ffmpegs_scene_report():

@@ -1,4 +1,4 @@
-"""[[…]] spans of phonemes in a say: line (PLAN.md item 13). Standard library; Python 3.9.
+"""[[…]] spans of phonemes in a say: line (training-video-tools' PLAN.md item 13). Standard library; Python 3.9.
 
 A span's contents go to the speech model as phonemes as they stand; the text around it is
 phonemized by the model's own tokenizer and the two are spliced with the spaces as written.
@@ -83,11 +83,11 @@ def splice(text, phonemize):
     return "".join(out).strip()
 
 
-QUIET = "sfθʃh"   # item 30, 1: the voiceless fricatives, said too faintly at the start of a cue
+QUIET = "sfθʃh"   # training-video-tools' item 30, 1: the voiceless fricatives, said too faintly at the start of a cue
 
 
 def lead_in(given):
-    """The phoneme string as the voice is given it (item 30, 1): `, ` in front, and a quiet first
+    """The phoneme string as the voice is given it (training-video-tools' item 30, 1): `, ` in front, and a quiet first
     consonant doubled, so the voice says it in full at speed 1.5 (Squirrel's choice, by ear)."""
     given = given.lstrip()
     if not given:

@@ -99,7 +99,7 @@ def _phonemizer(lang):
 
 def for_voice(said, phonemize):
     """The phoneme string the voice is given for what a cue or line says: text parts phonemized,
-    [[…]] spans as they stand, spaces as written, then the lead-in (item 30, 1)."""
+    [[…]] spans as they stand, spaces as written, then the lead-in (training-video-tools' item 30, 1)."""
     return phonemes.lead_in(phonemes.splice(said, phonemize))
 
 

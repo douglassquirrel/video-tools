@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -103,11 +104,11 @@ def test_makes_the_venv_installs_the_packages_and_prints_the_three_lines(pystub)
 def test_a_second_run_finds_the_venv_the_packages_and_the_config_and_runs_only_the_import_check(pystub):
     assert setup(pystub)[0] == 0
     first = calls(pystub)
-    conf_before = (open(pystub["conf"]).read(), os.stat(pystub["conf"]).st_mtime_ns)
+    conf_before = (Path(pystub["conf"]).read_text(), os.stat(pystub["conf"]).st_mtime_ns)
     code, out, err = setup(pystub)
     assert (code, out, err) == (0, lines_for(pystub), "")
     assert calls(pystub) == first + [[f"{pystub['venv']}/bin/python", "-c", IMPORTS]]
-    assert (open(pystub["conf"]).read(), os.stat(pystub["conf"]).st_mtime_ns) == conf_before
+    assert (Path(pystub["conf"]).read_text(), os.stat(pystub["conf"]).st_mtime_ns) == conf_before
 
 
 def test_a_config_naming_another_model_is_rewritten_with_its_other_lines_kept(pystub):
@@ -117,23 +118,23 @@ def test_a_config_naming_another_model_is_rewritten_with_its_other_lines_kept(py
     code, out, err = setup(pystub)
     assert (code, out) == (0, lines_for(pystub))
     assert err.endswith(f"setup-linux: wrote {pystub['conf']}\n")
-    assert open(pystub["conf"]).read() == f"# this machine\nVOICE=bm_george\nSPEECH_MODEL_DIR={pystub['model']}\n# the end\n"
+    assert Path(pystub["conf"]).read_text() == f"# this machine\nVOICE=bm_george\nSPEECH_MODEL_DIR={pystub['model']}\n# the end\n"
 
 
 def test_a_config_without_the_setting_gains_it_at_the_end(pystub):
     os.makedirs(os.path.dirname(pystub["conf"]))
     with open(pystub["conf"], "w") as f:
         f.write("VOICE=bm_george")          # no final newline
-    code, out, err = setup(pystub)
+    code, out, _err = setup(pystub)
     assert (code, out) == (0, lines_for(pystub))
-    assert open(pystub["conf"]).read() == f"VOICE=bm_george\nSPEECH_MODEL_DIR={pystub['model']}\n"
+    assert Path(pystub["conf"]).read_text() == f"VOICE=bm_george\nSPEECH_MODEL_DIR={pystub['model']}\n"
 
 
 def test_the_config_folder_is_made_when_it_is_missing(pystub, tmp_path):
     conf = str(tmp_path / "elsewhere" / "deeper" / "video-tools.conf")
-    code, out, err = setup(pystub, conf=conf)
+    code, out, _err = setup(pystub, conf=conf)
     assert code == 0 and out.splitlines()[1] == f"export VIDEO_TOOLS_CONF={conf}"
-    assert open(conf).read() == f"SPEECH_MODEL_DIR={pystub['model']}\n"
+    assert Path(conf).read_text() == f"SPEECH_MODEL_DIR={pystub['model']}\n"
 
 
 def test_a_config_that_cannot_be_read_is_refused_in_words_and_left_alone(pystub):
@@ -144,7 +145,7 @@ def test_a_config_that_cannot_be_read_is_refused_in_words_and_left_alone(pystub)
     assert (code, out) == (3, "")
     assert err.endswith(f"setup-linux: {pystub['conf']} cannot be used as it is; fix it or name another file with --conf:\n"
                         f"{pystub['conf']}: line 2: not KEY=value: not a setting\n")
-    assert open(pystub["conf"]).read() == "SPEECH_MODEL_DIR=/old\nnot a setting\n"
+    assert Path(pystub["conf"]).read_text() == "SPEECH_MODEL_DIR=/old\nnot a setting\n"
 
 
 README_POINTER = 'as the README\'s "One-time set-up of the speech model" says'
@@ -161,7 +162,7 @@ def test_a_model_folder_without_the_files_is_reported_file_by_file_after_the_ven
                    f"setup-linux: the model folder {pystub['model']} has no model.onnx; download it {README_POINTER}\n"
                    f"setup-linux: the model folder {pystub['model']} has no voices.npz; make it from the voices {README_POINTER}\n")
     assert len(calls(pystub)) == 3 and os.path.isfile(f"{pystub['venv']}/bin/python")
-    assert open(pystub["conf"]).read() == f"SPEECH_MODEL_DIR={pystub['model']}\n"
+    assert Path(pystub["conf"]).read_text() == f"SPEECH_MODEL_DIR={pystub['model']}\n"
 
 
 def test_one_missing_model_file_is_the_one_named(pystub):
@@ -265,7 +266,7 @@ def test_paths_with_spaces_and_non_ascii_are_quoted_for_the_shell(pystub, tmp_pa
     assert (code, err) == (0, f"setup-linux: made the venv at {venv}\nsetup-linux: installed {' '.join(PACKAGES)} into {venv}\nsetup-linux: wrote {conf}\n")
     assert out == (f"export VIDEO_TOOLS_PYTHON='{venv}/bin/python'\nexport VIDEO_TOOLS_CONF='{conf}'\n"
                    "export PYTHONDONTWRITEBYTECODE=1\n")
-    assert os.path.isfile(os.path.join(venv, "bin", "python")) and open(conf).read() == f"SPEECH_MODEL_DIR={pystub['model']}\n"
+    assert os.path.isfile(os.path.join(venv, "bin", "python")) and Path(conf).read_text() == f"SPEECH_MODEL_DIR={pystub['model']}\n"
 
 
 def test_a_failing_step_shows_only_its_last_five_lines(pystub):
@@ -280,9 +281,9 @@ def test_a_commented_out_model_line_is_kept_and_the_setting_added(pystub):
     os.makedirs(os.path.dirname(pystub["conf"]))
     with open(pystub["conf"], "w") as f:
         f.write("# SPEECH_MODEL_DIR=/old/place\nVOICE=bm_george\n")
-    code, out, err = setup(pystub)
+    code, out, _err = setup(pystub)
     assert (code, out) == (0, lines_for(pystub))
-    assert open(pystub["conf"]).read() == (f"# SPEECH_MODEL_DIR=/old/place\nVOICE=bm_george\n"
+    assert Path(pystub["conf"]).read_text() == (f"# SPEECH_MODEL_DIR=/old/place\nVOICE=bm_george\n"
                                            f"SPEECH_MODEL_DIR={pystub['model']}\n")
 
 
