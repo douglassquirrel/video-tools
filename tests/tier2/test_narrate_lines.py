@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.tier2.conftest import run, stub_calls
+from tests.tier2.conftest import run, run_program, stub_calls
 
 
 def stub_length(words):
@@ -31,6 +31,16 @@ def table(tmp_path):
     path.parent.mkdir()
     path.write_text(TABLE, encoding="utf-8")
     return path
+
+
+def test_run_as_a_program_it_prints_and_writes_what_it_does_when_called_inside_the_test(table, speech, tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    as_program = run_program("narrate", "--lines", table, "--out", a, "--speed", "1.5", env=speech)
+    code, out, err = run("narrate", "--lines", table, "--out", b, "--speed", "1.5", env=speech)
+    assert as_program[0] == 0 and "01.wav" in as_program[1]
+    assert as_program == (code, out.replace(str(b), str(a)), err.replace(str(b), str(a)))
+    assert sorted(os.listdir(a)) == sorted(os.listdir(b)) == ["01.wav", "02.wav", "03.wav", "timing.json"]
+    assert [(a / n).read_bytes() for n in os.listdir(a)] == [(b / n).read_bytes() for n in os.listdir(a)]
 
 
 def test_each_line_becomes_a_clip_named_by_its_number_with_timing_json(table, speech, tmp_path):

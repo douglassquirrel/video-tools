@@ -29,23 +29,23 @@ def commands_started(calls, command):
     return [c for c in calls if os.path.join(REPO, command) in c]
 
 
-@pytest.mark.parametrize("command", ["compare-video", "stills"])
+@pytest.mark.parametrize("command", ["compare-video", "stills", "narrate"])
 def test_run_calls_the_command_inside_the_test_and_starts_no_program_for_it(started, command):
     code, out, err = run(command, "--help")
     assert (code, err) == (0, "") and out.startswith(f"usage: {command}")
     assert commands_started(started, command) == []
 
 
-@pytest.mark.parametrize("command", ["compare-video", "stills"])
+@pytest.mark.parametrize("command", ["compare-video", "stills", "narrate"])
 def test_run_program_starts_the_file_as_a_program(started, command):
     code, out, err = run_program(command, "--help")
     assert (code, err) == (0, "") and out.startswith(f"usage: {command}")
     assert len(commands_started(started, command)) == 1
 
 
-@pytest.mark.parametrize("command", ["compare-video", "stills"])
+@pytest.mark.parametrize("command", ["compare-video", "stills", "narrate"])
 def test_run_reports_an_argparse_refusal_as_exit_2_with_the_usage_on_stderr(command):
-    code, out, err = run(command)
+    code, out, err = run(command, "--no-such-flag")
     assert code == 2 and out == "" and err.startswith(f"usage: {command}")
 
 
