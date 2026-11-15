@@ -121,7 +121,8 @@ def run_script(*args, cwd=None, env=None):
 
 # ---- narrate, stills, compare-video and setup-linux (taken in from training-video-tools at fc6091a): `run`
 # calls each one's main inside the test and `run_program` starts it as a program, against tests/stubs/fakemedia.py
-# as ffmpeg and ffprobe, the fake speech model in tests/stubs/kokoro_onnx/ and tests/stubs/pystub.py as python3.
+# as ffmpeg and ffprobe, the fake speech model in tests/stubs/kokoro_onnx/ and, for setup-linux, tests/stubs/prepare_venv.py as
+# lobster-tools' prepare-venv.
 
 STUBS = os.path.join(REPO, "tests", "stubs")
 

@@ -26,6 +26,8 @@ but for the names of their settings (see "Notes for users").
 - `stills`, `compare-video` and `narrate` need Homebrew's `python@3.12` (the speech package needs Python 3.10 to
   3.13) with the packages in `requirements.txt` (numpy, soundfile, kokoro-onnx 0.6.1, Pillow), in a `.venv` inside
   the checkout (Installation).
+- `setup-linux` also needs lobster-tools' `prepare-venv` (the public lobster-tools repository): connected at
+  `~/mnt/lobster-tools` in the Linux shell, or wherever `LOBSTER_TOOLS` names its checkout.
 - `narrate` also needs the Kokoro-82M speech model, about 327 MB, in `~/models/kokoro/`, and `~/.video-tools.conf`
   naming its folder ("One-time set-up of the speech model").
 
@@ -58,13 +60,16 @@ eval "$(~/mnt/video-tools/setup-linux --venv /tmp/work-$(id -u)/venv --model $HO
 ~/mnt/video-tools/stills --help
 ```
 
-It runs on the system `python3` (nothing installed), makes the venv when it is missing (`python3 -m venv
---system-site-packages DIR`), installs the packages when the venv cannot import them (`pip install numpy soundfile
-"kokoro-onnx==0.6.1" Pillow`, the one step that uses the network), checks that the model folder holds `model.onnx`
+`setup-linux` hands the work to lobster-tools' `prepare-venv` (its README, "`prepare-venv`"), with this checkout as
+`--project`; what it does for video-tools is in `prepare-venv.conf` at the top of the checkout. It finds
+`prepare-venv` in the lobster-tools checkout that `LOBSTER_TOOLS` names, else in `~/mnt/lobster-tools`, where a
+session connects it. It runs on the system `python3` (nothing installed), makes the venv when it is missing (`python3
+-m venv --system-site-packages DIR`), installs the packages in `requirements.txt` when the venv cannot import them
+(`pip install -r`, the one step that uses the network), checks that the model folder holds `model.onnx`
 and `voices.npz`, writes `SPEECH_MODEL_DIR` into the settings file and prints `export VIDEO_TOOLS_PYTHON=…`,
 `export VIDEO_TOOLS_CONF=…` and `export PYTHONDONTWRITEBYTECODE=1`; a second run finds everything in place and
 prints the lines alone. Every command but `cut-video` restarts itself under the Python `VIDEO_TOOLS_PYTHON` names.
-Never build that venv inside the repository from Linux (it would shadow the Mac's); `setup-linux` refuses to. With
+Never build that venv inside the repository from Linux (it would shadow the Mac's); `prepare-venv` refuses to. With
 `VIDEO_TOOLS_PYTHON` unset the commands use `.venv` as above; a path that does not exist is refused with exit 3.
 
 ### One-time set-up of the speech model
@@ -325,50 +330,50 @@ in training-video-tools on an invented 15-word line in `af_heart`: 1.0 took 4.69
 
 ### `setup-linux --venv DIR --model DIR --conf FILE [--dry-run]`
 
-The Linux device shell's preparation in one command ("Running from the Linux device shell" above): the venv made
-or reused, the packages installed when missing, the model folder checked, the settings file written, the three
-environment lines printed on stdout and nothing else there, so `eval "$(./setup-linux …)"` or a script that pastes
-the lines into an `env.sh` can take them as they are. Progress (the venv made, the packages installed, the settings
-written) goes to stderr, and nothing at all is said when everything was already in place. Standard library only,
-on the `python3` that runs it (3.9 or later): this is the command that makes the venv the others run under, so it
-cannot use it.
+The Linux device shell's preparation in one command ("Running from the Linux device shell" above), done by
+lobster-tools' `prepare-venv`: `setup-linux` runs it, on the `python3` that runs `setup-linux`, as `prepare-venv
+--project <this checkout> --venv DIR --model DIR --conf FILE [--dry-run]`, with the paths as given, and exits with
+its exit code. Its output is `prepare-venv`'s: the three environment lines on stdout and nothing else there, so
+`eval "$(./setup-linux …)"` or a script that pastes the lines into an `env.sh` can take them as they are; progress
+(the venv made, the packages installed, the settings written) on stderr, and nothing at all when everything was
+already in place. What `prepare-venv` does with each flag is in lobster-tools' README, "`prepare-venv`"; for
+video-tools, through `prepare-venv.conf`:
 
 - `--venv DIR`: the venv, outside this checkout (inside it is refused, exit 2). Missing, it is made with the
-  `python3` on PATH; present, it is reused. Then `DIR/bin/python` is asked to import the four packages, and only
-  when that fails are they installed.
+  `python3` on PATH; present, it is reused. Then `DIR/bin/python` is asked to import numpy, soundfile, kokoro_onnx
+  and PIL, and only when that fails is `requirements.txt` installed.
 - `--model DIR`: must hold `model.onnx` and `voices.npz` ("One-time set-up of the speech model"). Each missing file
   is named, exit 3; the venv and the settings are still done first, so one run reports everything it can.
 - `--conf FILE`: written with `SPEECH_MODEL_DIR=<the model folder>` when the file is missing or its
   `SPEECH_MODEL_DIR` is absent or different; every other line is kept, and a file that already says it is not
-  touched. The folder is made if needed. A file that cannot be read as settings (a line that is not `KEY=value`, an
-  unknown setting) is refused in words, exit 3, and left alone.
-- `--dry-run`: the same checks, then a `Would make the venv at …`, `Would install … into …`, `Would write … with
-  SPEECH_MODEL_DIR=…` line for each thing a real run would do, and the three lines; nothing is run, made or written
-  but the import check (when the venv exists).
-- Paths are made absolute, and those with spaces or other characters a shell would split are quoted in the lines.
+  touched. A file that is not `KEY=value` lines or cannot be read is refused in words, exit 3, and left alone.
+- `--dry-run`: a `Would …` line for each thing a real run would do, then the three lines; nothing is run, made or
+  written but the import check (when the venv exists).
+- `prepare-venv` is found in the checkout `LOBSTER_TOOLS` names, else in `~/mnt/lobster-tools`. Not there, it is one
+  line saying where it looked, exit 4, and nothing runs.
 
 ```console
-$ ./setup-linux --venv /tmp/work/venv --model ~/models/kokoro --conf /tmp/work/video-tools.conf --dry-run
+$ LOBSTER_TOOLS=~/lobster-tools ./setup-linux --venv /tmp/work/venv --model ~/models/kokoro --conf /tmp/work/video-tools.conf --dry-run
 Would make the venv at /tmp/work/venv
-Would install numpy soundfile kokoro-onnx==0.6.1 Pillow into /tmp/work/venv
+Would install the packages in /Users/you/video-tools/requirements.txt into /tmp/work/venv
 Would write /tmp/work/video-tools.conf with SPEECH_MODEL_DIR=/Users/you/models/kokoro
 export VIDEO_TOOLS_PYTHON=/tmp/work/venv/bin/python
 export VIDEO_TOOLS_CONF=/tmp/work/video-tools.conf
 export PYTHONDONTWRITEBYTECODE=1
-$ ./setup-linux --venv ./linux-venv --model ~/models/kokoro --conf /tmp/work/c.conf
-setup-linux: --venv ./linux-venv is inside this checkout (/Users/you/video-tools); the Linux venv must be made outside it, or it would shadow the Mac's .venv (README, "Running from the Linux device shell")
+$ LOBSTER_TOOLS=~/lobster-tools ./setup-linux --venv ./linux-venv --model ~/models/kokoro --conf /tmp/work/c.conf
+prepare-venv: --venv ./linux-venv is inside the checkout /Users/you/video-tools; make the venv outside it (in a connected checkout it would shadow the project's own .venv)
+$ ./setup-linux --venv /tmp/work/venv --model ~/models/kokoro --conf /tmp/work/c.conf
+setup-linux: lobster-tools' prepare-venv is not in /Users/you/mnt/lobster-tools, and LOBSTER_TOOLS is not set; connect lobster-tools there, or set LOBSTER_TOOLS to its checkout (README, "Running from the Linux device shell")
 ```
 
-(13 November 2026, on the Mac's own Python 3.9.6; the work folder and home folder shortened. With the model folder
-missing the same dry run says, on stderr, `setup-linux: the model folder … does not exist; download the model into
-it as the README's "One-time set-up of the speech model" says` and exits 3. A `venv` or `pip` run that fails is
-reported with its last five lines and exit 3; the venv is kept after a failed install, so the next run installs
-again.)
+(15 November 2026, on the Mac's own Python 3.9.6 with lobster-tools' `prepare-venv`; the work, home and checkout
+folders shortened. With the model folder missing the same dry run says, on stderr, `prepare-venv: the model folder
+… does not exist; get the model as the README's "One-time set-up of the speech model" says`, and exits 3.)
 
 ### Settings: `~/.video-tools.conf`
 
 `KEY=value` lines, `#` comments, optional quotes, `~` for your home folder in a folder's path; read, never run.
-`VIDEO_TOOLS_CONF` in the environment names another file. Only `narrate` and `setup-linux` read it; a line that is
+`VIDEO_TOOLS_CONF` in the environment names another file. Only `narrate` reads it (`setup-linux` writes `SPEECH_MODEL_DIR` into the one it is given); a line that is
 not `KEY=value`, or any other key, is refused naming the line.
 
 | Key | Meaning |
@@ -403,9 +408,9 @@ traceback. `cut-video` has its own codes; the other commands share theirs (the s
 | Exit | Meaning | What to do |
 |---|---|---|
 | 0 | Success; with `--dry-run`, everything checked and nothing written. `compare-video` reports and never judges: 0 whenever it runs. | |
-| 2 | Bad arguments (see `--help`). For `setup-linux`: a `--venv` inside this checkout. For `narrate`: no `--lines`, no `--out`, an argument that is not a flag (a training script), a speed outside 0.5 to 2.0, `--phonemes` without `--dry-run`. For `stills`: a first argument ending `.md` (a training script), no choice of `--at`, `--every` or `--changes`, or two; `--threshold` without `--changes` or outside 0 to 1; `--detect-fps` of 0 or less or without `--changes`; `--every` of 0 or less; a time at or past the video's end (the length is given); `--from` or `--until` with `--at`, with `--sheet` alone or not a time; `--from` at or past the end; `--until` not after `--from`; a `--grid` that is not two whole numbers of at least 1. | Fix the command line. |
-| 3 | An input refuses, and nothing is written. For `stills`: any still, `stills.txt` or sheet it would write already exists (with `--from` or `--until`, `stills.txt` is added to instead, and a still not in it is written over); for `--sheet` alone, `stills.txt` or a still it names is missing, it lists no stills, a line of it is not `TIME NAME`, or the video is missing. For `compare-video`: either file is missing, or the sheet exists. For `narrate`: the table is missing, has no `#`, `Start (s)` and `Line` columns or a row that cannot be spoken (named), or a `Say` whose spans are wrong (the row and the problem named); `SPEECH_MODEL_DIR` is not set or has no model; the voice is not in the voices file; a clip or `timing.json` exists without `--replace`. A settings file that cannot be read (the line named). `VIDEO_TOOLS_PYTHON` names no such file. For `setup-linux`: the model folder or one of its two files is missing (named), the settings file cannot be read as one, no `python3` is on PATH to make the venv, or the `venv` or `pip install` step failed (its last lines shown; the venv is kept); what it did before the step that failed stays. | Fix the input, or move the output away. |
-| 4 | A package (numpy, soundfile, Pillow, kokoro-onnx) is not installed in the Python running the command: one line names it, its `pip install` line and, when `VIDEO_TOOLS_PYTHON` is unset, the device-shell set-up; ffmpeg or ffprobe is not on PATH; ffmpeg failed (its output is shown); the speech model failed on a line (named). What was written before stays. | Install as above, or read ffmpeg's message. |
+| 2 | Bad arguments (see `--help`). For `setup-linux`: a `--venv` inside this checkout (refused by `prepare-venv`). For `narrate`: no `--lines`, no `--out`, an argument that is not a flag (a training script), a speed outside 0.5 to 2.0, `--phonemes` without `--dry-run`. For `stills`: a first argument ending `.md` (a training script), no choice of `--at`, `--every` or `--changes`, or two; `--threshold` without `--changes` or outside 0 to 1; `--detect-fps` of 0 or less or without `--changes`; `--every` of 0 or less; a time at or past the video's end (the length is given); `--from` or `--until` with `--at`, with `--sheet` alone or not a time; `--from` at or past the end; `--until` not after `--from`; a `--grid` that is not two whole numbers of at least 1. | Fix the command line. |
+| 3 | An input refuses, and nothing is written. For `stills`: any still, `stills.txt` or sheet it would write already exists (with `--from` or `--until`, `stills.txt` is added to instead, and a still not in it is written over); for `--sheet` alone, `stills.txt` or a still it names is missing, it lists no stills, a line of it is not `TIME NAME`, or the video is missing. For `compare-video`: either file is missing, or the sheet exists. For `narrate`: the table is missing, has no `#`, `Start (s)` and `Line` columns or a row that cannot be spoken (named), or a `Say` whose spans are wrong (the row and the problem named); `SPEECH_MODEL_DIR` is not set or has no model; the voice is not in the voices file; a clip or `timing.json` exists without `--replace`. A settings file that cannot be read (the line named). `VIDEO_TOOLS_PYTHON` names no such file. For `setup-linux` (from `prepare-venv`): the model folder or one of its two files is missing (named), the settings file cannot be read, used or written, no `python3` is on PATH to make the venv, the `venv` or `pip install` step failed (its last lines shown; the venv is kept), or the packages installed but still do not import; what it did before the step that failed stays. | Fix the input, or move the output away. |
+| 4 | A package (numpy, soundfile, Pillow, kokoro-onnx) is not installed in the Python running the command: one line names it, its `pip install` line and, when `VIDEO_TOOLS_PYTHON` is unset, the device-shell set-up; ffmpeg or ffprobe is not on PATH; ffmpeg failed (its output is shown); the speech model failed on a line (named). For `setup-linux`: lobster-tools' `prepare-venv` is not where it looked (named). What was written before stays. | Install as above, or read ffmpeg's message. |
 
 ## Testing
 
@@ -423,24 +428,25 @@ process, so coverage measures it without starting a program; a few tests for eac
 program, as a user runs it, and check that it prints and writes the same. Each runs against stand-ins: for `cut-video`, `ffmpeg`
 and `ffprobe` from `tests/stubs/ffstub.py`, which record their arguments and fail on demand; for the others, an
 `ffmpeg` and `ffprobe` that read fake media files (`tests/stubs/fakemedia.py`), a fake speech model
-(`tests/stubs/kokoro_onnx/`) and a fake `python3` for `setup-linux` (`tests/stubs/pystub.py`), all put on `PATH` or
-`PYTHONPATH` by `tests/tier2/conftest.py`. Each stand-in program is a small `/bin/sh` file kept in `tests/stubs/`
-(`ffstub.sh`, `fakemedia.sh`, `pystub.sh`) and linked into each test's folder under the program's name, never
+(`tests/stubs/kokoro_onnx/`) and, for `setup-linux`, a stand-in for lobster-tools' `prepare-venv`
+(`tests/stubs/prepare_venv.py`), all put on `PATH`, `PYTHONPATH` or `LOBSTER_TOOLS` by the tests. Each stand-in program is a small `/bin/sh` file kept in `tests/stubs/`
+(`ffstub.sh`, `fakemedia.sh`) and linked into each test's folder under the program's name, never
 written by a test, because macOS takes about a seventh of a second over the first run of a script it has not seen;
 the run fails at its end if a test wrote over one. Every refusal and exit code, `--help`, `--dry-run`, no partial file after
 a failure, and the inputs unchanged byte for byte are tested there. The commands under test run from an empty
 temporary folder, so even a fault cannot write into the checkout. Run one tier with `.venv/bin/pytest tests/tier1`.
-Coverage: 99% of `videotools/` (15 November 2026, 299 tests); the one line not measured is `setup-linux`'s refusal
-of a venv inside the checkout, which is tested on a copy of the checkout that coverage does not follow.
+Coverage: 99% of `videotools/` (15 November 2026, 292 tests): every line runs, and two branches are not taken.
 
-The tests of `stills`, `compare-video`, `narrate --lines` and `setup-linux` came from training-video-tools with
-their code. Each was shown to fail when the code it guards was broken on purpose, and tests were added for what no
+The tests of `stills`, `compare-video` and `narrate --lines` came from training-video-tools with their code (and
+`setup-linux`'s, until it became a wrapper of `prepare-venv` on 15 November 2026). Each was shown to fail when the code it guards was broken on purpose, and tests were added for what no
 test there pinned.
 
 **Manual checks with the real programs** (not automated), recorded 13 November 2026 with ffmpeg 9.0.2 and the
 Kokoro model on invented clips and an invented table, in a scratch folder: the examples in "Usage" are those runs.
 `stills`, `compare-video` and `narrate --lines` each wrote, byte for byte, what training-video-tools' own command
-writes from the same inputs; `setup-linux --dry-run` was run on the Mac's own Python 3.9.6. For `cut-video`: make a
+writes from the same inputs; `setup-linux --dry-run` was run on the Mac's own Python 3.9.6, and again on 15 November 2026 with
+lobster-tools' real `prepare-venv` (`--help`, a dry run, a venv inside the checkout refused, `prepare-venv` not found;
+the example above). For `cut-video`: make a
 short clip and an invented transcript, then run `--help`, `--dry-run` and a real cut, and check the result with
 `ffprobe -v error -show_entries format=duration:stream=codec_type -of compact out/clip-cut.mp4`. Done on 3 November
 2026 on a 10-second test clip: the 7-second cut came out at 7.000000 s with one video and one audio stream, and a
@@ -474,6 +480,11 @@ second run into the same folder refused with exit 9.
   - In the Linux device shell, `VIDEO_TOOLS_PYTHON` and `VIDEO_TOOLS_CONF` (not `TRAINING_VIDEO_TOOLS_…`), which
     `setup-linux` prints; it installs four packages (numpy, soundfile, kokoro-onnx, Pillow).
   - `stills SCRIPT.md …` and `narrate SCRIPT.md` are refused (exit 2): run them from training-video-tools.
+- 15 November 2026: `setup-linux` now runs lobster-tools' `prepare-venv`, found in the lobster-tools checkout
+  `LOBSTER_TOOLS` names or else in `~/mnt/lobster-tools` (connect it to the session). The same flags, the same three
+  `export` lines and exit codes 2 and 3; not finding `prepare-venv` is exit 4. Its progress and error messages now
+  begin `prepare-venv:`, and a settings file with a setting other than `SPEECH_MODEL_DIR` and `VOICE` is no longer
+  refused by `setup-linux` (`narrate` still refuses it).
 
 ## Contributing
 
