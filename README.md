@@ -343,7 +343,9 @@ video-tools, through `prepare-venv.conf`:
   `python3` on PATH; present, it is reused. Then `DIR/bin/python` is asked to import numpy, soundfile, kokoro_onnx
   and PIL, and only when that fails is `requirements.txt` installed.
 - `--model DIR`: must hold `model.onnx` and `voices.npz` ("One-time set-up of the speech model"). Each missing file
-  is named, exit 3; the venv and the settings are still done first, so one run reports everything it can.
+  is named, exit 3; the venv and the settings are still done first, so one run reports everything it can, and
+  when the model is the only thing missing the three lines are still printed, so the shell can be set up before
+  the model is connected.
 - `--conf FILE`: written with `SPEECH_MODEL_DIR=<the model folder>` when the file is missing or its
   `SPEECH_MODEL_DIR` is absent or different; every other line is kept, and a file that already says it is not
   touched. A file that is not `KEY=value` lines or cannot be read is refused in words, exit 3, and left alone.
@@ -368,7 +370,8 @@ setup-linux: lobster-tools' prepare-venv is not in /Users/you/mnt/lobster-tools,
 
 (15 November 2026, on the Mac's own Python 3.9.6 with lobster-tools' `prepare-venv`; the work, home and checkout
 folders shortened. With the model folder missing the same dry run says, on stderr, `prepare-venv: the model folder
-… does not exist; get the model as the README's "One-time set-up of the speech model" says`, and exits 3.)
+… does not exist; get the model as the README's "One-time set-up of the speech model" says`, still prints the
+three lines, and exits 3.)
 
 ### Settings: `~/.video-tools.conf`
 
@@ -485,6 +488,9 @@ second run into the same folder refused with exit 9.
   `export` lines and exit codes 2 and 3; not finding `prepare-venv` is exit 4. Its progress and error messages now
   begin `prepare-venv:`, and a settings file with a setting other than `SPEECH_MODEL_DIR` and `VOICE` is no longer
   refused by `setup-linux` (`narrate` still refuses it).
+- 15 November 2026: when the model folder or one of its files is the only thing missing, `setup-linux` still exits 3
+  and names it, but now also prints the three `export` lines (lobster-tools' `prepare-venv`, its commit 8cb5103). A
+  script that takes the lines only on exit 0 is unaffected.
 
 ## Contributing
 
