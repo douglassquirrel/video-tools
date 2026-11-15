@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from tests.tier2.conftest import fake_media, ff_calls, run
+from tests.tier2.conftest import fake_media, ff_calls, run, run_program
 
 FRAMES = 1587
 DURATION = f"{FRAMES / 30:.6f}"      # 52.900000: 529 windows of 0.1 s
@@ -30,6 +30,13 @@ def test_help_and_usage():
     assert code == 0 and out.startswith("usage: compare-video [-h] [--every SECONDS] [--sheet OUT.png] NEW OLD")
     code, out, err = run("compare-video", "x.mp4")
     assert code == 2 and "usage: compare-video" in err
+
+
+def test_run_as_a_program_it_prints_what_it_prints_when_called_inside_the_test(pair, ffstub):
+    new, old = pair
+    as_program = run_program("compare-video", new, old, "--every", "20", env=ffstub)
+    assert as_program[0] == 0 and as_program[1].startswith(f"NEW {new}\n")
+    assert as_program == run("compare-video", new, old, "--every", "20", env=ffstub)
 
 
 def test_a_file_against_itself_reports_every_measure_and_no_difference(pair, ffstub):

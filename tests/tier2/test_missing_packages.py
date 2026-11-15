@@ -1,12 +1,13 @@
 """A package a command needs but this Python lacks is one line naming it and the install, exit 4
-(taken in from training-video-tools at fc6091a)."""
+(taken in from training-video-tools at fc6091a). Each runs the command as a program, since a package already
+imported into the tests' own process cannot be hidden from it."""
 
 import os
 import sys
 
 import pytest
 
-from tests.tier2.conftest import fake_media, run
+from tests.tier2.conftest import fake_media, run_program
 
 HINT = ('; from the Linux device shell, set VIDEO_TOOLS_PYTHON to a Python that has it '
         '(README, "Running from the Linux device shell")')
@@ -47,7 +48,7 @@ def test_a_missing_package_is_named_with_its_install_line_exit_4(video, ffstub, 
         table = tmp_path / "table.md"
         table.write_text("| # | Start (s) | Line |\n|---|---|---|\n| 1 | 0 | Hi. |\n", encoding="utf-8")
         args = ["--lines", table, "--out", tmp_path / "clips"] + args
-    code, out, err = run(command, *([] if command == "narrate" else [video]), *args, env=env, cwd=tmp_path)
+    code, out, err = run_program(command, *([] if command == "narrate" else [video]), *args, env=env, cwd=tmp_path)
     assert (code, out) == (4, ""), err
     assert "Traceback" not in err
     assert err == message(command, pip) + HINT + "\n"
@@ -57,6 +58,6 @@ def test_a_missing_package_is_named_with_its_install_line_exit_4(video, ffstub, 
 def test_with_video_tools_python_set_the_device_shell_hint_is_left_out(video, ffstub, tmp_path):
     env = dict(ffstub, **hidden(tmp_path, "PIL"))
     env["VIDEO_TOOLS_PYTHON"] = sys.executable
-    code, out, err = run("stills", video, "--at", "1", "--out", tmp_path / "stills", env=env)
+    code, out, err = run_program("stills", video, "--at", "1", "--out", tmp_path / "stills", env=env)
     assert (code, out) == (4, "")
     assert err == message("stills", "Pillow") + "\n"

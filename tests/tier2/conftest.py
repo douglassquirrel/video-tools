@@ -1,6 +1,9 @@
 """Tier 2: the command against stubs of ffmpeg and ffprobe, in its own temporary folders."""
 
+import contextlib
 import hashlib
+import importlib
+import io
 import json
 import os
 import subprocess
@@ -148,8 +151,8 @@ def pytest_configure(config):
         os.environ.pop(COVERING, None)
 
 
-def run(command, *args, cwd=None, env=None):
-    """Run a top-level command script with this Python; (exit code, stdout, stderr). Without `cwd`, from
+def run_program(command, *args, cwd=None, env=None):
+    """Start a top-level command script as a program, with this Python, as a user runs it; (exit code, stdout, stderr). Without `cwd`, from
     a fresh empty folder, so a relative path never lands in the checkout, even when the code is wrong."""
     full_env = clean_env()
     full_env["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -162,6 +165,49 @@ def run(command, *args, cwd=None, env=None):
         p = subprocess.run([sys.executable, os.path.join(REPO, command)] + [str(a) for a in args],
                            capture_output=True, text=True, cwd=cwd or empty, env=full_env, check=False)
     return p.returncode, p.stdout, p.stderr
+
+
+# The commands `run` calls inside the test, by the module whose main it calls; the rest it starts as programs.
+MAINS = {"compare-video": "videotools.compare_video"}
+
+
+def run(command, *args, cwd=None, env=None):
+    """Call a command's main inside the test, in this process, so coverage measures it with no program started;
+    (exit code, stdout, stderr), as run_program gives them. The environment is clean_env() with `env` over it
+    (None unsets a variable), PYTHONPATH's folders go at the front of the import path, and the working folder is
+    `cwd` or a fresh empty one; all of it, and any module imported from PYTHONPATH, is put back afterwards."""
+    if command not in MAINS:
+        return run_program(command, *args, cwd=cwd, env=env)
+    full_env = clean_env()
+    full_env.update(env or {})
+    full_env = {k: v for k, v in full_env.items() if v is not None}
+    extra = [p for p in full_env.get("PYTHONPATH", "").split(os.pathsep) if p]
+    environ, folder, path, modules = dict(os.environ), os.getcwd(), list(sys.path), set(sys.modules)
+    bytecode = sys.dont_write_bytecode
+    out, err = io.StringIO(), io.StringIO()
+    with tempfile.TemporaryDirectory() as empty:
+        try:
+            os.environ.clear()
+            os.environ.update(full_env)
+            os.chdir(cwd or empty)
+            sys.path[:0] = extra
+            sys.dont_write_bytecode = True      # as the command scripts do: no __pycache__ in tests/stubs/
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                try:
+                    code = importlib.import_module(MAINS[command]).main([str(a) for a in args])
+                except SystemExit as e:         # argparse: --help, or a usage error
+                    code = e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+        finally:
+            os.environ.clear()
+            os.environ.update(environ)
+            os.chdir(folder)
+            sys.path[:] = path
+            sys.dont_write_bytecode = bytecode
+            for name in set(sys.modules) - modules:     # the stand-in speech model, so a later test imports afresh
+                if any(os.path.abspath(getattr(sys.modules[name], "__file__", None) or "").startswith(
+                        os.path.abspath(p) + os.sep) for p in extra):
+                    del sys.modules[name]
+    return code, out.getvalue(), err.getvalue()
 
 
 @pytest.fixture
