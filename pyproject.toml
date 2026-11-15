@@ -6,8 +6,9 @@ addopts = "--cov=videotools --cov-report=term-missing"
 
 [tool.coverage.run]
 branch = true
-# Tier 2 runs narrate, stills and compare-video as subprocesses; coverage.py's .pth hook measures
-# them when COVERAGE_PROCESS_START names this file (tests/tier2/conftest.py sets it) and parallel is on.
+# Most Tier 2 tests call each command inside the test; the few that start it as a program (conftest.run_program)
+# are measured by coverage.py's .pth hook, when COVERAGE_PROCESS_START names this file (conftest sets it for
+# those runs only) and parallel is on.
 parallel = true
 source = ["videotools"]
 

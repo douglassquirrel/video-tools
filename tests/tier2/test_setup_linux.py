@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.tier2.conftest import REPO, STUBS, clean_env, run
+from tests.tier2.conftest import REPO, STUBS, clean_env, run, run_program
 
 PACKAGES = ["numpy", "soundfile", "kokoro-onnx==0.6.1", "Pillow"]
 IMPORTS = "import numpy, soundfile, kokoro_onnx, PIL"
@@ -33,10 +33,11 @@ def pystub(tmp_path):
             "conf": str(tmp_path / "work" / "video-tools.conf")}
 
 
-def setup(env, *extra, venv=None, model=None, conf=None):
-    """Run setup-linux with the stub's venv, model and conf unless given otherwise."""
+def setup(env, *extra, venv=None, model=None, conf=None, runner=run):
+    """Run setup-linux with the stub's venv, model and conf unless given otherwise; inside the test unless
+    `runner` is run_program."""
     run_env = {k: v for k, v in env.items() if k in ("PATH", "PYSTUB_LOG", "PYSTUB_FAIL")}
-    return run("setup-linux", "--venv", venv or env["venv"], "--model", model or env["model"],
+    return runner("setup-linux", "--venv", venv or env["venv"], "--model", model or env["model"],
                "--conf", conf or env["conf"], *extra, env=run_env)
 
 
@@ -93,8 +94,9 @@ def test_the_stand_in_python3_and_the_venv_python_it_makes_are_links_to_one_shar
     assert code == 0 and os.path.islink(venv_python) and os.readlink(venv_python) == shared
 
 
-def test_makes_the_venv_installs_the_packages_and_prints_the_three_lines(pystub):
-    code, out, err = setup(pystub)
+@pytest.mark.parametrize("runner", [run, run_program], ids=["inside the test", "as a program"])
+def test_makes_the_venv_installs_the_packages_and_prints_the_three_lines(pystub, runner):
+    code, out, err = setup(pystub, runner=runner)
     venv_python = f"{pystub['venv']}/bin/python"
     assert calls(pystub) == [
         [pystub["python3"], "-m", "venv", "--system-site-packages", pystub["venv"]],

@@ -119,9 +119,9 @@ def run_script(*args, cwd=None, env=None):
     return p.returncode, p.stdout, p.stderr
 
 
-# ---- narrate, stills and compare-video (taken in from training-video-tools at fc6091a): the
-# commands run as subprocesses, against tests/stubs/fakemedia.py as ffmpeg and ffprobe and the
-# fake speech model in tests/stubs/kokoro_onnx/.
+# ---- narrate, stills, compare-video and setup-linux (taken in from training-video-tools at fc6091a): `run`
+# calls each one's main inside the test and `run_program` starts it as a program, against tests/stubs/fakemedia.py
+# as ffmpeg and ffprobe, the fake speech model in tests/stubs/kokoro_onnx/ and tests/stubs/pystub.py as python3.
 
 STUBS = os.path.join(REPO, "tests", "stubs")
 
@@ -152,8 +152,10 @@ def pytest_configure(config):
 
 
 def run_program(command, *args, cwd=None, env=None):
-    """Start a top-level command script as a program, with this Python, as a user runs it; (exit code, stdout, stderr). Without `cwd`, from
-    a fresh empty folder, so a relative path never lands in the checkout, even when the code is wrong."""
+    """Start a top-level command script as a program, with this Python, as a user runs it; (exit code, stdout,
+    stderr). For the few tests that must (the shared rules, "Tiers": most call `run` instead), since coverage's
+    hook starting in each program costs a tenth of a second or more. Without `cwd`, from a fresh empty folder, so a
+    relative path never lands in the checkout, even when the code is wrong."""
     full_env = clean_env()
     full_env["PYTHONDONTWRITEBYTECODE"] = "1"
     if os.environ.get(COVERING):    # let coverage.py measure the subprocess too (pyproject.toml: parallel = true)
@@ -167,9 +169,9 @@ def run_program(command, *args, cwd=None, env=None):
     return p.returncode, p.stdout, p.stderr
 
 
-# The commands `run` calls inside the test, by the module whose main it calls; the rest it starts as programs.
+# The commands `run` calls inside the test, by the module whose main it calls. cut-video has its own helpers above.
 MAINS = {"compare-video": "videotools.compare_video", "stills": "videotools.stills",
-         "narrate": "videotools.narrate"}
+         "narrate": "videotools.narrate", "setup-linux": "videotools.setup_linux"}
 
 
 def run(command, *args, cwd=None, env=None):
@@ -177,8 +179,6 @@ def run(command, *args, cwd=None, env=None):
     (exit code, stdout, stderr), as run_program gives them. The environment is clean_env() with `env` over it
     (None unsets a variable), PYTHONPATH's folders go at the front of the import path, and the working folder is
     `cwd` or a fresh empty one; all of it, and any module imported from PYTHONPATH, is put back afterwards."""
-    if command not in MAINS:
-        return run_program(command, *args, cwd=cwd, env=env)
     full_env = clean_env()
     full_env.update(env or {})
     full_env = {k: v for k, v in full_env.items() if v is not None}
