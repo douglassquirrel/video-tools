@@ -168,7 +168,7 @@ def run_program(command, *args, cwd=None, env=None):
 
 
 # The commands `run` calls inside the test, by the module whose main it calls; the rest it starts as programs.
-MAINS = {"compare-video": "videotools.compare_video"}
+MAINS = {"compare-video": "videotools.compare_video", "stills": "videotools.stills"}
 
 
 def run(command, *args, cwd=None, env=None):

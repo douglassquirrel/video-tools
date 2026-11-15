@@ -7,7 +7,7 @@ import os
 import pytest
 from PIL import Image
 
-from tests.tier2.conftest import fake_media, ff_calls, run
+from tests.tier2.conftest import fake_media, ff_calls, run, run_program
 from videotools import sheet
 
 
@@ -25,6 +25,18 @@ def test_help_names_the_video_form_only():
         "[--every SECONDS] [--changes] [--threshold N] [--detect-fps N] [--from T] [--until T] [--sheet SHEET.png] "
         "VIDEO")
     assert "--cue-changes" not in out and "SCRIPT" not in out
+
+
+def test_run_as_a_program_it_prints_and_writes_what_it_does_when_called_inside_the_test(short, ffstub, tmp_path):
+    as_program = run_program("stills", short, "--at", "0,3", "--out", tmp_path / "a", "--sheet", tmp_path / "a.png",
+                             env=ffstub)
+    inside = run("stills", short, "--at", "0,3", "--out", tmp_path / "b", "--sheet", tmp_path / "b.png", env=ffstub)
+    assert as_program[0] == 0 and as_program[1].startswith("t0000.00.png at 0.000 s\n")
+    code, out, err = inside     # the same run into b, so its paths name b where the program's name a
+    assert as_program == (code, out.replace(str(tmp_path / "b"), str(tmp_path / "a")),
+                          err.replace(str(tmp_path / "b"), str(tmp_path / "a")))
+    assert sorted(os.listdir(tmp_path / "a")) == sorted(os.listdir(tmp_path / "b"))
+    assert (tmp_path / "a.png").read_bytes() == (tmp_path / "b.png").read_bytes()
 
 
 def test_at_writes_one_png_a_time_at_the_videos_own_size_and_lists_them(short, ffstub, tmp_path):
