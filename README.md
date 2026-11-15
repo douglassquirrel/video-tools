@@ -412,13 +412,15 @@ traceback. `cut-video` has its own codes; the other commands share theirs (the s
 ```bash
 /opt/homebrew/bin/python3.12 -m venv .venv                                   # once
 .venv/bin/pip install -r requirements.txt -r requirements-dev.txt            # once
-.venv/bin/pytest            # the whole suite, with coverage (about 50 seconds; 30 with --no-cov)
+.venv/bin/pytest            # the whole suite, with coverage (about 30 seconds; --no-cov saves nothing)
 .venv/bin/ruff check .      # lint
 ```
 
 The suite needs no ffmpeg, no speech model and no network. `tests/tier1/` tests the pure parts (reading and writing
 `.srt`, finding phrases, where a cut falls, the description table, phoneme spans, the stills' times and names, the
-compare measures, the settings file). `tests/tier2/` runs each command against stand-ins: for `cut-video`, `ffmpeg`
+compare measures, the settings file). `tests/tier2/` calls each command's code inside the test, in the test's own
+process, so coverage measures it without starting a program; a few tests for each command start the file itself as a
+program, as a user runs it, and check that it prints and writes the same. Each runs against stand-ins: for `cut-video`, `ffmpeg`
 and `ffprobe` from `tests/stubs/ffstub.py`, which record their arguments and fail on demand; for the others, an
 `ffmpeg` and `ffprobe` that read fake media files (`tests/stubs/fakemedia.py`), a fake speech model
 (`tests/stubs/kokoro_onnx/`) and a fake `python3` for `setup-linux` (`tests/stubs/pystub.py`), all put on `PATH` or
@@ -428,7 +430,7 @@ written by a test, because macOS takes about a seventh of a second over the firs
 the run fails at its end if a test wrote over one. Every refusal and exit code, `--help`, `--dry-run`, no partial file after
 a failure, and the inputs unchanged byte for byte are tested there. The commands under test run from an empty
 temporary folder, so even a fault cannot write into the checkout. Run one tier with `.venv/bin/pytest tests/tier1`.
-Coverage: 99% of `videotools/` (15 November 2026, 281 tests); the one line not measured is `setup-linux`'s refusal
+Coverage: 99% of `videotools/` (15 November 2026, 299 tests); the one line not measured is `setup-linux`'s refusal
 of a venv inside the checkout, which is tested on a copy of the checkout that coverage does not follow.
 
 The tests of `stills`, `compare-video`, `narrate --lines` and `setup-linux` came from training-video-tools with
