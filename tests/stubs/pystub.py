@@ -1,8 +1,8 @@
 """A stand-in for the python3 on PATH and for the venv's python it makes (tests/tier2/test_setup_linux.py
-puts `python3` on PATH as a script that runs this with PYSTUB_SELF naming itself).
+puts `python3` on PATH as a link to pystub.sh, which runs this with PYSTUB_SELF naming the path it was called by).
 
 Every call is appended as a JSON line {"python": PYSTUB_SELF, "args": [...]} to PYSTUB_LOG.
-`-m venv [--system-site-packages] DIR` makes DIR/bin/python, another such script; `-c "import …"`
+`-m venv [--system-site-packages] DIR` makes DIR/bin/python, another link to pystub.sh; `-c "import …"`
 succeeds when the venv holding this python has an `installed` file, else fails as a missing module
 does; `-m pip install …` writes that file with the names given. PYSTUB_FAIL=venv or pip makes
 that step exit 1 with a line like the real program's; pip-noisy makes pip fail with eight lines. Nothing here is real Python or pip.
@@ -12,19 +12,12 @@ import json
 import os
 import sys
 
-REAL = sys.executable
-HERE = os.path.realpath(__file__)
-
 
 def record(args):
     log = os.environ.get("PYSTUB_LOG")
     if log:
         with open(log, "a", encoding="utf-8") as f:
             f.write(json.dumps({"python": os.environ.get("PYSTUB_SELF", ""), "args": args}) + "\n")
-
-
-def script_for(path):
-    return f"#!/bin/sh\nunset COVERAGE_PROCESS_START\nPYSTUB_SELF='{path}' exec '{REAL}' '{HERE}' \"$@\"\n"
 
 
 def main(args):
@@ -38,9 +31,7 @@ def main(args):
             return 1
         target = os.path.join(args[-1], "bin", "python")
         os.makedirs(os.path.dirname(target), exist_ok=True)
-        with open(target, "w", encoding="utf-8") as f:
-            f.write(script_for(target))
-        os.chmod(target, 0o755)
+        os.symlink(os.path.join(os.environ["VIDEO_TOOLS_STUBS"], "pystub.sh"), target)
         return 0
     if args[:1] == ["-c"]:
         if os.path.isfile(os.path.join(venv, "installed")):

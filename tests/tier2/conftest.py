@@ -10,7 +10,6 @@ import tempfile
 import pytest
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-STUB = os.path.join(REPO, "tests", "stubs", "ffstub.py")
 
 TRANSCRIPT = (
     "1\n00:00:00,000 --> 00:00:04,000\nIs this thing on?\n\n"
@@ -21,6 +20,39 @@ TRANSCRIPT = (
 )
 
 
+# The stand-in programs are files in tests/stubs/ (*.sh), never written by a test: each test links them into
+# its own folder under the program's name, because macOS takes about a seventh of a second over the first run
+# of a script file it has not seen and a few thousandths over a new link to one it has run. They find the
+# Python to run and this folder from these two variables, which every run below passes on. A test that needs
+# a different stand-in removes its link and writes its own file; the run checks at its end that no shared one
+# was written over (pytest_sessionfinish).
+STAND_IN_ENV = {"VIDEO_TOOLS_STUB_PYTHON": sys.executable,
+                "VIDEO_TOOLS_STUBS": os.path.join(REPO, "tests", "stubs")}
+
+
+def stand_in_digests(folder):
+    """{name: SHA-256} of each shared stand-in (*.sh) in `folder`."""
+    return {name: hashlib.sha256(open(os.path.join(folder, name), "rb").read()).hexdigest()
+            for name in sorted(os.listdir(folder)) if name.endswith(".sh")}
+
+
+def written_over(before, folder):
+    """The names of the stand-ins in `before` that are now different or gone from `folder`, sorted."""
+    now = stand_in_digests(folder)
+    return sorted(name for name, digest in before.items() if now.get(name) != digest)
+
+
+STAND_INS_AT_START = stand_in_digests(STAND_IN_ENV["VIDEO_TOOLS_STUBS"])
+
+
+def pytest_sessionfinish(session):
+    changed = written_over(STAND_INS_AT_START, STAND_IN_ENV["VIDEO_TOOLS_STUBS"])
+    if changed:
+        sys.stderr.write(f"\nA test wrote over or removed the shared stand-in(s) {', '.join(changed)} in tests/stubs/: "
+                         "a test must remove its link and write its own file instead. Restore them with git.\n")
+        session.exitstatus = 1
+
+
 class Stubs:
     """The stub programs' folder and log, and what they are told to do."""
 
@@ -28,14 +60,12 @@ class Stubs:
         self.bin = folder / "bin"
         self.bin.mkdir()
         self.log = folder / "ff-calls.jsonl"
-        self.env = {"PATH": str(self.bin), "FFSTUB_LOG": str(self.log)}
+        self.env = dict(STAND_IN_ENV, PATH=str(self.bin), FFSTUB_LOG=str(self.log))
         for name in ("ffmpeg", "ffprobe"):
             self.add(name)
 
     def add(self, name):
-        path = self.bin / name
-        path.write_text(f"#!/bin/sh\nFFSTUB_NAME={name} exec '{sys.executable}' '{STUB}' \"$@\"\n")
-        path.chmod(0o755)
+        os.symlink(os.path.join(STAND_IN_ENV["VIDEO_TOOLS_STUBS"], "ffstub.sh"), self.bin / name)
 
     def remove(self, name):
         (self.bin / name).unlink()
@@ -102,6 +132,7 @@ USER_SETTINGS = ("VIDEO_TOOLS_PYTHON", "VIDEO_TOOLS_CONF", "VIDEO_TOOLS_VENV",
 def clean_env(**overrides):
     """A copy of the environment without the user's own video-tools settings, plus `overrides`."""
     env = {k: v for k, v in os.environ.items() if k not in USER_SETTINGS}
+    env.update(STAND_IN_ENV)
     env.update(overrides)
     return env
 
@@ -139,11 +170,7 @@ def ffstub(tmp_path):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     for name in ("ffmpeg", "ffprobe"):
-        path = bin_dir / name
-        # The stub is not code under test: started without coverage's hook, it starts in a tenth of the time.
-        path.write_text(f"#!/bin/sh\nunset COVERAGE_PROCESS_START\nFFSTUB_NAME={name} exec '{sys.executable}' "
-                        f"'{os.path.join(STUBS, 'fakemedia.py')}' \"$@\"\n")
-        path.chmod(0o755)
+        os.symlink(os.path.join(STUBS, "fakemedia.sh"), bin_dir / name)
     return {"PATH": f"{bin_dir}:{os.environ['PATH']}", "FFSTUB_LOG": str(tmp_path / "ff-calls.jsonl")}
 
 

@@ -23,8 +23,7 @@ def pystub(tmp_path):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     python3 = bin_dir / "python3"
-    python3.write_text(f"#!/bin/sh\nunset COVERAGE_PROCESS_START\nPYSTUB_SELF='{python3}' exec '{sys.executable}' '{os.path.join(STUBS, 'pystub.py')}' \"$@\"\n")
-    python3.chmod(0o755)
+    os.symlink(os.path.join(STUBS, "pystub.sh"), python3)
     model = tmp_path / "kokoro"
     model.mkdir()
     (model / "model.onnx").write_bytes(b"")
@@ -84,6 +83,14 @@ def test_a_venv_inside_the_checkout_is_refused_in_words_before_anything_runs(pys
                             "outside it, or it would shadow the Mac's .venv (README, \"Running from the Linux device shell\")\n")
     assert sorted(os.listdir(copy)) == ["setup-linux", "videotools"] and not os.path.exists(tmp_path / "c.conf")
     assert calls(pystub) == []
+
+
+def test_the_stand_in_python3_and_the_venv_python_it_makes_are_links_to_one_shared_file(pystub):
+    shared = os.path.join(STUBS, "pystub.sh")
+    assert os.path.islink(pystub["python3"]) and os.readlink(pystub["python3"]) == shared
+    code, _out, _err = setup(pystub)
+    venv_python = f"{pystub['venv']}/bin/python"
+    assert code == 0 and os.path.islink(venv_python) and os.readlink(venv_python) == shared
 
 
 def test_makes_the_venv_installs_the_packages_and_prints_the_three_lines(pystub):

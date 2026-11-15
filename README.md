@@ -412,7 +412,7 @@ traceback. `cut-video` has its own codes; the other commands share theirs (the s
 ```bash
 /opt/homebrew/bin/python3.12 -m venv .venv                                   # once
 .venv/bin/pip install -r requirements.txt -r requirements-dev.txt            # once
-.venv/bin/pytest            # the whole suite, with coverage (about a minute)
+.venv/bin/pytest            # the whole suite, with coverage (about 50 seconds; 30 with --no-cov)
 .venv/bin/ruff check .      # lint
 ```
 
@@ -422,10 +422,13 @@ compare measures, the settings file). `tests/tier2/` runs each command against s
 and `ffprobe` from `tests/stubs/ffstub.py`, which record their arguments and fail on demand; for the others, an
 `ffmpeg` and `ffprobe` that read fake media files (`tests/stubs/fakemedia.py`), a fake speech model
 (`tests/stubs/kokoro_onnx/`) and a fake `python3` for `setup-linux` (`tests/stubs/pystub.py`), all put on `PATH` or
-`PYTHONPATH` by `tests/tier2/conftest.py`. Every refusal and exit code, `--help`, `--dry-run`, no partial file after
+`PYTHONPATH` by `tests/tier2/conftest.py`. Each stand-in program is a small `/bin/sh` file kept in `tests/stubs/`
+(`ffstub.sh`, `fakemedia.sh`, `pystub.sh`) and linked into each test's folder under the program's name, never
+written by a test, because macOS takes about a seventh of a second over the first run of a script it has not seen;
+the run fails at its end if a test wrote over one. Every refusal and exit code, `--help`, `--dry-run`, no partial file after
 a failure, and the inputs unchanged byte for byte are tested there. The commands under test run from an empty
 temporary folder, so even a fault cannot write into the checkout. Run one tier with `.venv/bin/pytest tests/tier1`.
-Coverage: 99% of `videotools/` (13 November 2026, 277 tests); the one line not measured is `setup-linux`'s refusal
+Coverage: 99% of `videotools/` (15 November 2026, 281 tests); the one line not measured is `setup-linux`'s refusal
 of a venv inside the checkout, which is tested on a copy of the checkout that coverage does not follow.
 
 The tests of `stills`, `compare-video`, `narrate --lines` and `setup-linux` came from training-video-tools with
